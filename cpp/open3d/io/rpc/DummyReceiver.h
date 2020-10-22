@@ -27,6 +27,7 @@
 #pragma once
 
 #include "open3d/io/rpc/ReceiverBase.h"
+#include "open3d/io/rpc/MessageUtils.h"
 
 namespace open3d {
 namespace io {
@@ -38,8 +39,6 @@ class DummyReceiver : public ReceiverBase {
 public:
     DummyReceiver(const std::string& address, int timeout)
         : ReceiverBase(address, timeout) {}
-
-    std::shared_ptr<zmq::message_t> CreateStatusOKMsg();
 
     std::shared_ptr<zmq::message_t> ProcessMessage(
             const messages::Request& req,

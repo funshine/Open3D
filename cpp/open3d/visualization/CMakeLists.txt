@@ -24,7 +24,7 @@ set_target_properties(ShaderFileTarget PROPERTIES FOLDER "Custom")
 
 # build
 set(VISUALIZATION_ALL_HEADER_FILES "")
-set(VISUALIZATION_ALL_SOURCE_FILES "")
+set(VISUALIZATION_ALL_SOURCE_FILES "" visualizer/Receiver.cpp visualizer/Receiver.h)
 macro(AddSourceDir DIR)
     file(GLOB_RECURSE HEADER_FILES "${DIR}/*.h")
     file(GLOB_RECURSE SOURCE_FILES "${DIR}/*.cpp")
@@ -46,6 +46,10 @@ else ()
     list(FILTER VISUALIZATION_ALL_SOURCE_FILES EXCLUDE REGEX .*GuiSettingsView.h)
     list(FILTER VISUALIZATION_ALL_SOURCE_FILES EXCLUDE REGEX .*GuiWidgets.cpp)
     list(FILTER VISUALIZATION_ALL_SOURCE_FILES EXCLUDE REGEX .*GuiWidgets.h)
+endif()
+
+if ( NOT BUILD_RPC_INTERFACE )
+    list(FILTER VISUALIZATION_ALL_SOURCE_FILES EXCLUDE REGEX .*Receiver.cpp)
 endif()
 
 # create object library

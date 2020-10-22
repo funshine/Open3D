@@ -26,46 +26,39 @@
 
 #pragma once
 
-#include <memory>
-#include <string>
-
-#include "open3d/io/rpc/ConnectionBase.h"
+#include "open3d/io/rpc/ReceiverBase.h"
+#include "open3d/visualization/rendering/Open3DScene.h"
 
 namespace open3d {
-namespace io {
-namespace rpc {
+namespace visualization {
 
-/// This class implements the Connection which is used as default in all
-/// functions.
-class Connection : public ConnectionBase {
+class GuiVisualizer;
+
+/// Receiver implementation for the GuiVisualizer
+class Receiver : public io::rpc::ReceiverBase {
 public:
-    Connection();
+    Receiver(GuiVisualizer* gui_visualizer,
+             std::shared_ptr<rendering::Open3DScene> scene,
+             const std::string& address,
+             int timeout)
+            : ReceiverBase(address, timeout),
+              gui_visualizer_(gui_visualizer),
+              scene_(scene) {}
 
-    /// Creates a Connection object used for sending data.
-    /// \param address          The address of the receiving end.
-    ///
-    /// \param connect_timeout  The timeout for the connect operation of the
-    /// socket.
-    ///
-    /// \param timeout          The timeout for sending data.
-    ///
-    Connection(const std::string& address, int connect_timeout, int timeout);
-    ~Connection();
-
-    /// Function for sending data wrapped in a zmq message object.
-    std::shared_ptr<zmq::message_t> Send(zmq::message_t& send_msg);
-
-    /// Function for sending raw data. Meant for testing purposes
-    std::shared_ptr<zmq::message_t> Send(const void* data, size_t size);
-
-    static std::string DefaultAddress();
+    std::shared_ptr<zmq::message_t> ProcessMessage(
+            const io::rpc::messages::Request& req,
+            const io::rpc::messages::SetMeshData& msg,
+            const MsgpackObject& obj) override;
 
 private:
-    std::unique_ptr<zmq::socket_t> socket_;
-    const std::string address_;
-    const int connect_timeout_;
-    const int timeout_;
+    void SetGeometry(std::shared_ptr<geometry::Geometry3D> geom,
+                     const std::string& path,
+                     int time,
+                     const std::string& layer);
+
+    GuiVisualizer* gui_visualizer_;
+    std::shared_ptr<rendering::Open3DScene> scene_;
 };
-}  // namespace rpc
-}  // namespace io
+
+}  // namespace visualization
 }  // namespace open3d

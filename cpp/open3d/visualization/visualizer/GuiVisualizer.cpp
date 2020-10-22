@@ -65,6 +65,7 @@
 #include "open3d/visualization/visualizer/GuiSettingsModel.h"
 #include "open3d/visualization/visualizer/GuiSettingsView.h"
 #include "open3d/visualization/visualizer/GuiWidgets.h"
+#include "open3d/visualization/visualizer/Receiver.h"
 
 #define LOAD_IN_NEW_WINDOW 0
 
@@ -330,6 +331,7 @@ struct GuiVisualizer::Impl {
     std::shared_ptr<gui::SceneWidget> scene_wgt_;
     std::shared_ptr<gui::VGrid> help_keys_;
     std::shared_ptr<gui::VGrid> help_camera_;
+    std::shared_ptr<Receiver> receiver_;
 
     struct Settings {
         rendering::Material lit_material_;
@@ -1091,6 +1093,31 @@ void GuiVisualizer::OnDragDropped(const char *path) {
     auto vis = this;
 #endif  // LOAD_IN_NEW_WINDOW
     vis->LoadGeometry(path);
+}
+
+void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
+#ifdef BUILD_RPC_INTERFACE
+    impl_->receiver_ = std::make_shared<Receiver>(
+            this, impl_->scene_wgt_->GetScene(), address, timeout);
+    try {
+        utility::LogInfo("Starting to listen on {}", address);
+        impl_->receiver_->Start();
+    } catch (std::exception &e) {
+        utility::LogWarning("Failed to start RPC interface: {}", e.what());
+    }
+#else
+    utility::LogWarning(
+            "GuiVisualizer::StartRPCInterface: RPC interface not built");
+#endif
+}
+
+void GuiVisualizer::StopRPCInterface() {
+#ifdef BUILD_RPC_INTERFACE
+    impl_->receiver_.reset();
+#else
+    utility::LogWarning(
+            "GuiVisualizer::StopRPCInterface: RPC interface not built");
+#endif
 }
 
 }  // namespace visualization

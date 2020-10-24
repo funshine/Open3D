@@ -66,6 +66,8 @@
 #include "open3d/visualization/visualizer/GuiSettingsView.h"
 #include "open3d/visualization/visualizer/GuiWidgets.h"
 #include "open3d/visualization/visualizer/Receiver.h"
+#include "open3d/io/rpc/Connection.h"
+#include "open3d/io/rpc/RemoteFunctions.h"
 
 #define LOAD_IN_NEW_WINDOW 0
 
@@ -332,6 +334,7 @@ struct GuiVisualizer::Impl {
     std::shared_ptr<gui::VGrid> help_keys_;
     std::shared_ptr<gui::VGrid> help_camera_;
     std::shared_ptr<Receiver> receiver_;
+    std::shared_ptr<io::rpc::Connection> connection_;
 
     struct Settings {
         rendering::Material lit_material_;
@@ -864,6 +867,7 @@ bool GuiVisualizer::SetIBL(const char *path) {
 }
 
 void GuiVisualizer::LoadGeometry(const std::string &path) {
+    static int rpc_pcd_count = 0;
     auto progressbar = std::make_shared<gui::ProgressBar>();
     gui::Application::GetInstance().PostToMainThread(this, [this, path,
                                                             progressbar]() {
@@ -938,9 +942,23 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
         }
 
         if (model_success || geometry) {
+            if (rpc_pcd_count>0 && !model_success){
+                // Send point cloud to RPC
+                auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
+                io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
+                rpc_pcd_count++;
+            }
             gui::Application::GetInstance().PostToMainThread(
                     this, [this, model_success, geometry]() {
-                        SetGeometry(geometry, model_success);
+                        if (model_success){
+                            // Load Geometry directly
+                            SetGeometry(geometry, model_success);
+                            rpc_pcd_count = 0;
+                        } else if (rpc_pcd_count==0) {
+                            rpc_pcd_count++;
+                            // Load Point cloud for the first time, directly
+                            SetGeometry(geometry, model_success);
+                        }
                         CloseDialog();
                     });
         } else {
@@ -1099,6 +1117,7 @@ void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
 #ifdef BUILD_RPC_INTERFACE
     impl_->receiver_ = std::make_shared<Receiver>(
             this, impl_->scene_wgt_->GetScene(), address, timeout);
+    impl_->connection_ = std::make_shared<io::rpc::Connection>(address, timeout, timeout);
     try {
         utility::LogInfo("Starting ZMQ_REP socket on {}", address);
         impl_->receiver_->Start();

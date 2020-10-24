@@ -45,6 +45,8 @@ public:
               gui_visualizer_(gui_visualizer),
               scene_(scene) {}
 
+    virtual ~Receiver() {}
+
     std::shared_ptr<zmq::message_t> ProcessMessage(
             const io::rpc::messages::Request& req,
             const io::rpc::messages::SetMeshData& msg,

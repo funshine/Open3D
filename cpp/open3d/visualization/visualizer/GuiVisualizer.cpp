@@ -1100,7 +1100,7 @@ void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
     impl_->receiver_ = std::make_shared<Receiver>(
             this, impl_->scene_wgt_->GetScene(), address, timeout);
     try {
-        utility::LogInfo("Starting to listen on {}", address);
+        utility::LogInfo("Starting ZMQ_REP socket on {}", address);
         impl_->receiver_->Start();
     } catch (std::exception &e) {
         utility::LogWarning("Failed to start RPC interface: {}", e.what());

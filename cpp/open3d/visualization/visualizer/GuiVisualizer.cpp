@@ -231,6 +231,21 @@ std::shared_ptr<gui::VGrid> CreateCameraDisplay(gui::Window *window) {
     return layout;
 }
 
+std::shared_ptr<gui::Vert> CreateProgressDisplay(gui::Window *window) {
+    auto &theme = window->GetTheme();
+
+    auto layout =
+            std::make_shared<gui::Vert>(0, gui::Margins(theme.font_size));
+    layout->SetBackgroundColor(gui::Color(0, 0, 0, 0.5));
+    auto loading_text = std::string("Loading ");
+    layout->AddChild(std::make_shared<gui::Label>(loading_text.c_str()));
+    layout->AddFixed(theme.font_size);
+    auto progressbar = std::make_shared<gui::ProgressBar>();
+    layout->AddChild(progressbar);
+
+    return layout;
+}
+
 std::shared_ptr<gui::Dialog> CreateContactDialog(gui::Window *window) {
     auto &theme = window->GetTheme();
     auto em = theme.font_size;
@@ -320,6 +335,7 @@ const std::string MODEL_NAME = "__model__";
 
 enum MenuId {
     FILE_OPEN,
+    FILE_LOAD_POINT_CLOUD,
     FILE_EXPORT_RGB,
     FILE_QUIT,
     SETTINGS_LIGHT_AND_MATERIALS,
@@ -335,6 +351,7 @@ struct GuiVisualizer::Impl {
     std::shared_ptr<gui::VGrid> help_camera_;
     std::shared_ptr<Receiver> receiver_;
     std::shared_ptr<io::rpc::Connection> connection_;
+    std::shared_ptr<gui::Vert> load_progress_;
 
     struct Settings {
         rendering::Material lit_material_;
@@ -588,6 +605,7 @@ void GuiVisualizer::Init() {
 #endif  // __APPLE__
         auto file_menu = std::make_shared<gui::Menu>();
         file_menu->AddItem("Open...", FILE_OPEN, gui::KEY_O);
+        file_menu->AddItem("Load Pointcloud...", FILE_LOAD_POINT_CLOUD, gui::KEY_L);
         file_menu->AddItem("Export Current Image...", FILE_EXPORT_RGB);
         file_menu->AddSeparator();
 #if WIN32
@@ -736,6 +754,9 @@ void GuiVisualizer::Init() {
     impl_->help_camera_ = CreateCameraDisplay(this);
     impl_->help_camera_->SetVisible(false);
     AddChild(impl_->help_camera_);
+    impl_->load_progress_ = CreateProgressDisplay(this);
+    impl_->load_progress_->SetVisible(false);
+    AddChild(impl_->load_progress_);
 }
 
 GuiVisualizer::~GuiVisualizer() {}
@@ -848,6 +869,12 @@ void GuiVisualizer::Layout(const gui::Theme &theme) {
                                             prefcam.width, prefcam.height));
     impl_->help_camera_->Layout(theme);
 
+    // Draw progress bar in lower right
+    const auto prefprogress = impl_->load_progress_->CalcPreferredSize(theme);
+    impl_->load_progress_->SetFrame(gui::Rect(r.width - prefprogress.width, r.height + r.y - prefprogress.height,
+                                              prefprogress.width, prefprogress.height));
+    impl_->load_progress_->Layout(theme);
+
     // Settings in upper right
     const auto LIGHT_SETTINGS_WIDTH = 18 * em;
     auto light_settings_size =
@@ -867,7 +894,6 @@ bool GuiVisualizer::SetIBL(const char *path) {
 }
 
 void GuiVisualizer::LoadGeometry(const std::string &path) {
-    static int rpc_pcd_count = 0;
     auto progressbar = std::make_shared<gui::ProgressBar>();
     gui::Application::GetInstance().PostToMainThread(this, [this, path,
                                                             progressbar]() {
@@ -942,23 +968,9 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
         }
 
         if (model_success || geometry) {
-            if (rpc_pcd_count>0 && !model_success){
-                // Send point cloud to RPC
-                auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
-                io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
-                rpc_pcd_count++;
-            }
             gui::Application::GetInstance().PostToMainThread(
                     this, [this, model_success, geometry]() {
-                        if (model_success){
-                            // Load Geometry directly
-                            SetGeometry(geometry, model_success);
-                            rpc_pcd_count = 0;
-                        } else if (rpc_pcd_count==0) {
-                            rpc_pcd_count++;
-                            // Load Point cloud for the first time, directly
-                            SetGeometry(geometry, model_success);
-                        }
+                        SetGeometry(geometry, model_success);
                         CloseDialog();
                     });
         } else {
@@ -969,6 +981,100 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
                 ShowMessageBox("Error", msg.c_str());
             });
         }
+    });
+}
+
+void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
+    static int rpc_pcd_count = 0;
+    auto children = this->impl_->load_progress_->GetChildren();
+    auto progressbar = std::dynamic_pointer_cast<gui::ProgressBar>(children[2]);
+    gui::Application::GetInstance().PostToMainThread(this, [this, path,
+            progressbar]() {
+      auto children = this->impl_->load_progress_->GetChildren();
+      auto path_label = std::dynamic_pointer_cast<gui::Label>(children[0]);
+      auto loading_text = std::string("Loading ") + path;
+      path_label->SetText(loading_text.c_str());
+      this->impl_->load_progress_->SetVisible(true);
+
+      // this is for re-calculate load_progress_ widget size.
+      this->Layout(this->GetTheme());
+    });
+
+    gui::Application::GetInstance().RunInThread([this, path, progressbar]() {
+      auto UpdateProgress = [this, progressbar](float value) {
+        gui::Application::GetInstance().PostToMainThread(
+                this,
+                [progressbar, value]() { progressbar->SetValue(value); });
+      };
+
+      // clear current model
+      impl_->loaded_model_.meshes_.clear();
+      impl_->loaded_model_.materials_.clear();
+
+      auto geometry_type = io::ReadFileGeometryType(path);
+
+      if (geometry_type & io::CONTAINS_TRIANGLES) {
+          utility::LogInfo("{} has triangles, appears to be not a point cloud", path.c_str());
+      }
+
+      auto geometry = std::shared_ptr<geometry::Geometry3D>();
+      {
+          auto cloud = std::make_shared<geometry::PointCloud>();
+          bool success = false;
+          const float ioProgressAmount = 0.5f;
+          try {
+              io::ReadPointCloudOption opt;
+              opt.update_progress = [ioProgressAmount,
+                                     UpdateProgress](double percent) -> bool {
+                  UpdateProgress(ioProgressAmount * float(percent / 100.0));
+                  return true;
+              };
+              success = io::ReadPointCloud(path, *cloud, opt);
+          } catch (...) {
+              success = false;
+          }
+          if (success) {
+              utility::LogInfo("Successfully read {}", path.c_str());
+              UpdateProgress(ioProgressAmount);
+              if (!cloud->HasNormals()) {
+                  cloud->EstimateNormals();
+              }
+              UpdateProgress(0.666f);
+              cloud->NormalizeNormals();
+              UpdateProgress(0.75f);
+              geometry = cloud;
+          } else {
+              utility::LogWarning("Failed to read points {}", path.c_str());
+              cloud.reset();
+          }
+      }
+
+      if (geometry) {
+          if (rpc_pcd_count>0){
+              // Send point cloud to RPC
+              auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
+              io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
+              rpc_pcd_count++;
+          }
+          gui::Application::GetInstance().PostToMainThread(
+                  this, [this, geometry]() {
+                    if (rpc_pcd_count==0) {
+                        rpc_pcd_count++;
+                        // Load Point cloud for the first time, directly
+                        SetGeometry(geometry, false);
+                    }
+                    this->impl_->load_progress_->SetVisible(false);
+                    // Make sure scene is redrawn
+                    impl_->scene_wgt_->ForceRedraw();
+                  });
+      } else {
+          gui::Application::GetInstance().PostToMainThread(this, [this,
+                  path]() {
+            this->impl_->load_progress_->SetVisible(false);
+            auto msg = std::string("Could not load '") + path + "'.";
+            ShowMessageBox("Error", msg.c_str());
+          });
+      }
     });
 }
 
@@ -1016,6 +1122,27 @@ void GuiVisualizer::OnMenuItemSelected(gui::Menu::ItemId item_id) {
             dlg->SetOnDone([this](const char *path) {
                 this->CloseDialog();
                 OnDragDropped(path);
+            });
+            ShowDialog(dlg);
+            break;
+        }
+        case FILE_LOAD_POINT_CLOUD: {
+            auto dlg = std::make_shared<gui::FileDialog>(
+                    gui::FileDialog::Mode::OPEN, "Load Pointcloud", GetTheme());
+            dlg->AddFilter(".xyz .xyzn .xyzrgb .ply .pcd .pts",
+                           "Point cloud files (.xyz, .xyzn, .xyzrgb, .ply, "
+                           ".pcd, .pts)");
+            dlg->AddFilter(".xyz", "ASCII point cloud files (.xyz)");
+            dlg->AddFilter(".xyzn", "ASCII point cloud with normals (.xyzn)");
+            dlg->AddFilter(".xyzrgb",
+                           "ASCII point cloud files with colors (.xyzrgb)");
+            dlg->AddFilter(".pcd", "Point Cloud Data files (.pcd)");
+            dlg->AddFilter(".pts", "3D Points files (.pts)");
+            dlg->AddFilter("", "All files");
+            dlg->SetOnCancel([this]() { this->CloseDialog(); });
+            dlg->SetOnDone([this](const char *path) {
+              this->CloseDialog();
+              LoadPointcloudRealtime(path);
             });
             ShowDialog(dlg);
             break;

@@ -66,6 +66,9 @@ public:
     /// Loads asynchronously, will return immediately.
     void LoadGeometry(const std::string& path);
 
+    /// Loads asynchronously and render partially real-time, will return immediately.
+    void LoadPointcloudRealtime(const std::string& path);
+
     void ExportCurrentImage(const std::string& path);
 
     void Layout(const gui::Theme& theme) override;

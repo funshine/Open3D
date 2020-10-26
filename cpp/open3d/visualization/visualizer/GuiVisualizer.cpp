@@ -794,8 +794,8 @@ void GuiVisualizer::UpdatePointcloudCamera() {
 
 void GuiVisualizer::UpdatePointcloudUI() {
     auto scene3d = impl_->scene_wgt_->GetScene();
-
-//    impl_->SetMaterialsToDefault();
+    scene3d->ClearGeometry();
+    impl_->SetMaterialsToDefault();
 
     impl_->settings_.model_.SetDisplayingPointClouds(true);
     if (!impl_->settings_.model_.GetUserHasChangedLightingProfile()) {
@@ -816,6 +816,11 @@ void GuiVisualizer::UpdatePointcloudUI() {
 
     impl_->settings_.view_->Update();  // make sure prefab material is correct
 
+    // Make sure scene is redrawn
+    impl_->scene_wgt_->ForceRedraw();
+}
+
+void GuiVisualizer::ForceRedraw() {
     // Make sure scene is redrawn
     impl_->scene_wgt_->ForceRedraw();
 }
@@ -1024,7 +1029,6 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
 }
 
 void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
-    static int rpc_pcd_count = 0;
     auto children = this->impl_->load_progress_->GetChildren();
     auto progressbar = std::dynamic_pointer_cast<gui::ProgressBar>(children[2]);
     gui::Application::GetInstance().PostToMainThread(this, [this, path,
@@ -1063,7 +1067,7 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
       {
           auto cloud = std::make_shared<geometry::PointCloud>();
           bool success = false;
-          const float ioProgressAmount = 0.5f;
+          const float ioProgressAmount = 0.3f;
           try {
               io::ReadPointCloudOption opt;
               opt.update_progress = [ioProgressAmount,
@@ -1078,12 +1082,12 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
           if (success) {
               utility::LogInfo("Successfully read {}", path.c_str());
               UpdateProgress(ioProgressAmount);
-              if (!cloud->HasNormals()) {
-                  cloud->EstimateNormals();
-              }
-              UpdateProgress(0.666f);
-              cloud->NormalizeNormals();
-              UpdateProgress(0.75f);
+//              if (!cloud->HasNormals()) {
+//                  cloud->EstimateNormals();
+//              }
+//              UpdateProgress(0.5f);
+//              cloud->NormalizeNormals();
+//              UpdateProgress(0.6f);
               geometry = cloud;
           } else {
               utility::LogWarning("Failed to read points {}", path.c_str());
@@ -1094,8 +1098,30 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
       if (geometry) {
           // Send point cloud to RPC
           auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
-          io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
-          rpc_pcd_count++;
+          auto nb_points = pcd->points_.size();
+          utility::LogInfo("Point cloud has {} points", nb_points);
+
+          size_t seg_nb_points = 100000;
+          gui::Application::GetInstance().PostToMainThread(
+                  this, [this, seg_nb_points]() {
+                      // down sampled 1 out of 4
+                      this->impl_->scene_wgt_->GetScene()->SetDownsampleThreshold(seg_nb_points / 4);
+                  });
+          auto progress_gap = 0.7 / (nb_points/seg_nb_points + 1);
+          auto step = 0;
+          for (size_t start=0;start<nb_points;start+=seg_nb_points){
+              std::vector<size_t> indices;
+              for (size_t i = 0; i < seg_nb_points; i ++) {
+                  if(start+i>=nb_points) break;
+                  indices.push_back(start+i);
+              }
+              auto segment = pcd->SelectByIndex(indices);
+              io::rpc::SetPointCloud(*segment, "", step, "", impl_->connection_);
+              step++;
+              UpdateProgress(0.3f+step*progress_gap);
+              std::this_thread::sleep_for(std::chrono::milliseconds(500));
+          }
+
           gui::Application::GetInstance().PostToMainThread(
                   this, [this, geometry]() {
                     this->impl_->load_progress_->SetVisible(false);

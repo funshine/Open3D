@@ -60,6 +60,7 @@ public:
     void SetTitle(const std::string& title);
     void UpdatePointcloudCamera();
     void UpdatePointcloudUI();
+    void ForceRedraw();
     void SetGeometry(std::shared_ptr<const geometry::Geometry> geometry,
                      bool loaded_model);
 

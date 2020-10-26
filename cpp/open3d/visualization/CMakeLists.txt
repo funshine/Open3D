@@ -24,7 +24,7 @@ set_target_properties(ShaderFileTarget PROPERTIES FOLDER "Custom")
 
 # build
 set(VISUALIZATION_ALL_HEADER_FILES "")
-set(VISUALIZATION_ALL_SOURCE_FILES "" visualizer/Receiver.cpp visualizer/Receiver.h)
+set(VISUALIZATION_ALL_SOURCE_FILES "")
 macro(AddSourceDir DIR)
     file(GLOB_RECURSE HEADER_FILES "${DIR}/*.h")
     file(GLOB_RECURSE SOURCE_FILES "${DIR}/*.cpp")

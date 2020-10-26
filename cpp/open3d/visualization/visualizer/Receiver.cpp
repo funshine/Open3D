@@ -316,9 +316,14 @@ void Receiver::SetGeometry(std::shared_ptr<geometry::Geometry3D> geom,
                            int time,
                            const std::string& layer) {
     std::shared_ptr<rendering::Open3DScene> scene = scene_;
+    auto vis = gui_visualizer_;
     gui::Application::GetInstance().PostToMainThread(
-            gui_visualizer_, [geom, path, time, layer, scene]() {
-              scene->AddGeometry("geom_"+path+layer+std::to_string(time), geom, rendering::Material());
+            gui_visualizer_, [vis, geom, path, time, layer, scene]() {
+              scene->AddGeometry("geom_" + path + layer + std::to_string(time), geom, rendering::Material());
+              if (time< 1 && geom->GetGeometryType() == geometry::Geometry::GeometryType::PointCloud) {
+                  // this is for update camera.
+                  vis->UpdatePointcloudCamera();
+              }
             });
 }
 

@@ -781,6 +781,45 @@ void GuiVisualizer::AddItemsToAppMenu(
     }
 }
 
+void GuiVisualizer::UpdatePointcloudCamera() {
+    auto scene3d = impl_->scene_wgt_->GetScene();
+
+    auto &bounds = scene3d->GetBoundingBox();
+    impl_->scene_wgt_->SetupCamera(60.0, bounds,
+                                   bounds.GetCenter().cast<float>());
+
+    // Make sure scene is redrawn
+    impl_->scene_wgt_->ForceRedraw();
+}
+
+void GuiVisualizer::UpdatePointcloudUI() {
+    auto scene3d = impl_->scene_wgt_->GetScene();
+
+//    impl_->SetMaterialsToDefault();
+
+    impl_->settings_.model_.SetDisplayingPointClouds(true);
+    if (!impl_->settings_.model_.GetUserHasChangedLightingProfile()) {
+        auto &profile = GuiSettingsModel::GetDefaultPointCloudLightingProfile();
+        impl_->settings_.model_.SetLightingProfile(profile);
+    }
+
+    auto type = impl_->settings_.model_.GetMaterialType();
+    if (type == GuiSettingsModel::MaterialType::LIT ||
+        type == GuiSettingsModel::MaterialType::UNLIT) {
+            impl_->settings_.model_.SetMaterialType(
+                    GuiSettingsModel::MaterialType::UNLIT);
+    }
+
+    // Setup UI for point cloud
+    impl_->settings_.model_.UnsetCustomDefaultColor();
+    impl_->settings_.view_->ShowFileMaterialEntry(false);
+
+    impl_->settings_.view_->Update();  // make sure prefab material is correct
+
+    // Make sure scene is redrawn
+    impl_->scene_wgt_->ForceRedraw();
+}
+
 void GuiVisualizer::SetGeometry(
         std::shared_ptr<const geometry::Geometry> geometry, bool loaded_model) {
     auto scene3d = impl_->scene_wgt_->GetScene();
@@ -998,6 +1037,9 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
 
       // this is for re-calculate load_progress_ widget size.
       this->Layout(this->GetTheme());
+
+      // update UI for point cloud once.
+      this->UpdatePointcloudUI();
     });
 
     gui::Application::GetInstance().RunInThread([this, path, progressbar]() {
@@ -1050,22 +1092,15 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
       }
 
       if (geometry) {
-          if (rpc_pcd_count>0){
-              // Send point cloud to RPC
-              auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
-              io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
-              rpc_pcd_count++;
-          }
+          // Send point cloud to RPC
+          auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
+          io::rpc::SetPointCloud(*pcd, "", rpc_pcd_count, "", impl_->connection_);
+          rpc_pcd_count++;
           gui::Application::GetInstance().PostToMainThread(
                   this, [this, geometry]() {
-                    if (rpc_pcd_count==0) {
-                        rpc_pcd_count++;
-                        // Load Point cloud for the first time, directly
-                        SetGeometry(geometry, false);
-                    }
                     this->impl_->load_progress_->SetVisible(false);
                     // Make sure scene is redrawn
-                    impl_->scene_wgt_->ForceRedraw();
+                    this->impl_->scene_wgt_->ForceRedraw();
                   });
       } else {
           gui::Application::GetInstance().PostToMainThread(this, [this,

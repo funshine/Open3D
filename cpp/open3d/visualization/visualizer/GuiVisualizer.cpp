@@ -1301,13 +1301,13 @@ void GuiVisualizer::OnDragDropped(const char *path) {
     vis->LoadGeometry(path);
 }
 
-void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
+void GuiVisualizer::StartRPCInterface(const std::string &bind_address, const std::string &connection_address, int timeout) {
 #ifdef BUILD_RPC_INTERFACE
     impl_->receiver_ = std::make_shared<Receiver>(
-            this, impl_->scene_wgt_->GetScene(), address, timeout);
-    impl_->connection_ = std::make_shared<io::rpc::Connection>(address, timeout, timeout);
+            this, impl_->scene_wgt_->GetScene(), bind_address, timeout);
+    impl_->connection_ = std::make_shared<io::rpc::Connection>(connection_address, timeout, timeout);
     try {
-        utility::LogInfo("Starting ZMQ_REP socket on {}", address);
+        utility::LogInfo("Starting ZMQ_REP socket on {}", bind_address);
         impl_->receiver_->Start();
     } catch (std::exception &e) {
         utility::LogWarning("Failed to start RPC interface: {}", e.what());

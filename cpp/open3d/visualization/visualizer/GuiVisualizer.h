@@ -77,7 +77,7 @@ public:
     void Layout(const gui::Theme& theme) override;
 
     /// Starts the RPC interface. See io/rpc/ReceiverBase for the parameters.
-    void StartRPCInterface(const std::string& address, int timeout);
+    void StartRPCInterface(const std::string& bind_address, const std::string& connection_address, int timeout);
 
     void StopRPCInterface();
 

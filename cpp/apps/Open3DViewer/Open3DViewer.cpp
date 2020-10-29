@@ -38,30 +38,34 @@ using namespace open3d::geometry;
 using namespace open3d::visualization;
 
 namespace {
-static const std::string gUsage = "Usage: Open3DViewer [meshfile|pointcloud]";
+static const std::string gUsage = "Usage: Open3DViewer [--geometry] [meshfile|pointcloud] [--bind] [bind_address] [--connection] [connection_address]";
 }  // namespace
 
 int Run(int argc, const char *argv[]) {
-    const char *path = nullptr;
-    if (argc > 1) {
-        path = argv[1];
-        if (argc > 2) {
-            utility::LogWarning(gUsage.c_str());
-        }
-    }
+//    const char *path = nullptr;
+//    if (argc > 1) {
+//        path = argv[1];
+//        if (argc > 2) {
+//            utility::LogWarning(gUsage.c_str());
+//        }
+//    }
+
+    std::string path_string = utility::GetProgramOptionAsString(
+            argc, (char **)argv, "--geometry","");
+    auto path = path_string.c_str();
 
     auto &app = gui::Application::GetInstance();
     app.Initialize(argc, argv);
 
     auto vis = std::make_shared<GuiVisualizer>("Open3D", WIDTH, HEIGHT);
 #ifdef BUILD_RPC_INTERFACE
-    std::string bindAddress = utility::GetProgramOptionAsString(
+    std::string bind_address = utility::GetProgramOptionAsString(
             argc, (char **)argv, "--bind",
             io::rpc::Connection::DefaultAddress());
-    std::string connectionAddress = utility::GetProgramOptionAsString(
+    std::string connection_address = utility::GetProgramOptionAsString(
             argc, (char **)argv, "--connection",
             io::rpc::Connection::DefaultAddress());
-    vis->StartRPCInterface(bindAddress, connectionAddress, 1000);
+    vis->StartRPCInterface(bind_address, connection_address, 1000);
 #endif
     bool is_path_valid = (path && path[0] != '\0');
     if (is_path_valid) {

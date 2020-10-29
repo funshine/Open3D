@@ -1308,6 +1308,7 @@ void GuiVisualizer::StartRPCInterface(const std::string &bind_address, const std
     impl_->connection_ = std::make_shared<io::rpc::Connection>(connection_address, timeout, timeout);
     try {
         utility::LogInfo("Starting ZMQ_REP socket on {}", bind_address);
+        utility::LogInfo("Connecting ZMQ_REQ socket on {}", connection_address);
         impl_->receiver_->Start();
     } catch (std::exception &e) {
         utility::LogWarning("Failed to start RPC interface: {}", e.what());

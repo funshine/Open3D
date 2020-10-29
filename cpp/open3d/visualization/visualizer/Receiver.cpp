@@ -319,8 +319,13 @@ void Receiver::SetGeometry(std::shared_ptr<geometry::Geometry3D> geom,
     auto vis = gui_visualizer_;
     gui::Application::GetInstance().PostToMainThread(
             gui_visualizer_, [vis, geom, path, time, layer, scene]() {
+              auto is_point_cloud = (geom->GetGeometryType() == geometry::Geometry::GeometryType::PointCloud);
+              if (is_point_cloud && time < 1) {
+                  // update UI once and clear geometry when a new geometry segment is received.
+                  vis->UpdatePointcloudUI();
+              }
               scene->AddGeometry("geom_" + path + layer + std::to_string(time), geom, rendering::Material());
-              if (geom->GetGeometryType() == geometry::Geometry::GeometryType::PointCloud) {
+              if (is_point_cloud) {
                   if (time < 1) {
                       // this is for update camera.
                       vis->UpdatePointcloudCamera();

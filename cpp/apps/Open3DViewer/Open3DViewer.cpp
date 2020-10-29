@@ -41,13 +41,13 @@ static const std::string gUsage = "Usage: Open3DViewer [meshfile|pointcloud]";
 }  // namespace
 
 int Run(int argc, const char *argv[]) {
-   const char *path = nullptr;
-   if (argc > 1) {
-       path = argv[1];
-       if (argc > 2) {
-           utility::LogWarning(gUsage.c_str());
-       }
-   }
+    const char *path = nullptr;
+    if (argc > 1) {
+        path = argv[1];
+        if (argc > 2) {
+            utility::LogWarning(gUsage.c_str());
+        }
+    }
 
     auto &app = gui::Application::GetInstance();
     app.Initialize(argc, argv);

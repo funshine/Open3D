@@ -94,8 +94,6 @@ std::shared_ptr<zmq::message_t> Connection::Send(const void* data,
     return Send(send_msg);
 }
 
-std::string Connection::DefaultAddress() { return defaults.address; }
-
 }  // namespace rpc
 }  // namespace io
 }  // namespace open3d

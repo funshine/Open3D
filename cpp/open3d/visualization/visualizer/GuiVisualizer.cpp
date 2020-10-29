@@ -46,6 +46,7 @@
 #include "open3d/visualization/gui/Combobox.h"
 #include "open3d/visualization/gui/Dialog.h"
 #include "open3d/visualization/gui/FileDialog.h"
+#include "open3d/visualization/gui/TextEdit.h"
 #include "open3d/visualization/gui/Label.h"
 #include "open3d/visualization/gui/Layout.h"
 #include "open3d/visualization/gui/ProgressBar.h"
@@ -246,6 +247,61 @@ std::shared_ptr<gui::Vert> CreateProgressDisplay(gui::Window *window) {
     return layout;
 }
 
+#ifdef BUILD_RPC_INTERFACE
+std::shared_ptr<gui::Dialog> CreateRpcParamDialog(gui::Window *window, const char *default_address, std::function<void(const char *)> on_done = nullptr, std::function<void()> on_cancel = nullptr) {
+    auto &theme = window->GetTheme();
+    auto em = theme.font_size;
+    auto dlg = std::make_shared<gui::Dialog>("Set address");
+
+    auto title = std::make_shared<gui::Label>("Set address like: tcp://127.0.0.1:51454");
+    auto left_col = std::make_shared<gui::Label>(
+            "RPC address:\n");
+    auto right_col = std::make_shared<gui::TextEdit>();
+    right_col->SetText(default_address);
+
+    auto cancel = std::make_shared<gui::Button>("Cancel");
+    if(on_cancel!=nullptr) {
+        cancel->SetOnClicked([window, on_cancel]() { 
+            on_cancel();
+            window->CloseDialog();
+            });
+    } else {
+        cancel->SetOnClicked([window]() { window->CloseDialog(); });
+    }
+
+    auto done = std::make_shared<gui::Button>("Done");
+    if(on_done!=nullptr) {
+        done->SetOnClicked([window, on_done, right_col]() { 
+            on_done(right_col->GetText());
+            window->CloseDialog();
+            });
+    } else {
+        done->SetOnClicked([window]() { window->CloseDialog(); });
+    }
+
+    gui::Margins margins(em);
+    auto layout = std::make_shared<gui::Vert>(0, margins);
+    layout->AddChild(gui::Horiz::MakeCentered(title));
+    layout->AddFixed(em);
+
+    auto columns = std::make_shared<gui::Horiz>(em, gui::Margins());
+    columns->AddChild(left_col);
+    columns->AddChild(right_col);
+    layout->AddChild(columns);
+
+    layout->AddFixed(em);
+    auto horiz = std::make_shared<gui::Horiz>(em, gui::Margins());
+    horiz->AddStretch();
+    horiz->AddChild(cancel);
+    horiz->AddChild(done);
+    layout->AddChild(horiz);
+
+    dlg->AddChild(layout);
+
+    return dlg;
+}
+#endif
+
 std::shared_ptr<gui::Dialog> CreateContactDialog(gui::Window *window) {
     auto &theme = window->GetTheme();
     auto em = theme.font_size;
@@ -339,6 +395,8 @@ enum MenuId {
     FILE_EXPORT_RGB,
     FILE_QUIT,
     SETTINGS_LIGHT_AND_MATERIALS,
+    SETTINGS_RPC_BIND_ADDRESS,
+    SETTINGS_RPC_SEND_ADDRESS,
     HELP_KEYS,
     HELP_CAMERA,
     HELP_ABOUT,
@@ -351,6 +409,8 @@ struct GuiVisualizer::Impl {
     std::shared_ptr<gui::VGrid> help_camera_;
     std::shared_ptr<Receiver> receiver_;
     std::shared_ptr<io::rpc::Connection> connection_;
+    std::string bind_address_;
+    std::string connection_address_;
     std::shared_ptr<gui::Vert> load_progress_;
 
     struct Settings {
@@ -619,6 +679,11 @@ void GuiVisualizer::Init() {
         settings_menu->AddItem("Lighting & Materials",
                                SETTINGS_LIGHT_AND_MATERIALS);
         settings_menu->SetChecked(SETTINGS_LIGHT_AND_MATERIALS, true);
+        settings_menu->AddItem("RPC Bind Address",
+                               SETTINGS_RPC_BIND_ADDRESS);
+        settings_menu->AddItem("RPC Connection Address",
+                               SETTINGS_RPC_SEND_ADDRESS);
+        
         menu->AddMenu("Settings", settings_menu);
 
         auto help_menu = std::make_shared<gui::Menu>();
@@ -757,6 +822,9 @@ void GuiVisualizer::Init() {
     impl_->load_progress_ = CreateProgressDisplay(this);
     impl_->load_progress_->SetVisible(false);
     AddChild(impl_->load_progress_);
+
+    impl_->connection_address_ = "tcp://127.0.0.1:51454";
+    impl_->bind_address_ = "tcp://127.0.0.1:51454";
 }
 
 GuiVisualizer::~GuiVisualizer() {}
@@ -1116,10 +1184,25 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
                   indices.push_back(start+i);
               }
               auto segment = pcd->SelectByIndex(indices);
-              io::rpc::SetPointCloud(*segment, "", step, "", impl_->connection_);
+
+#ifdef BUILD_RPC_INTERFACE
+              io::rpc::SetPointCloud(*segment, "", step, "", this->impl_->connection_);
+#endif
+              gui::Application::GetInstance().PostToMainThread(
+                  this, [this, segment, step]() {
+                    auto scene = this->impl_->scene_wgt_->GetScene();
+                    scene->AddGeometry("geom_" + std::to_string(step), segment, rendering::Material());
+                    // Make sure scene is redrawn
+                    if (step < 1) {
+                      // this is for update camera.
+                      this->UpdatePointcloudCamera();
+                    }
+                    this->impl_->scene_wgt_->ForceRedraw();
+                  });
+
               step++;
               UpdateProgress(0.3f+step*progress_gap);
-              std::this_thread::sleep_for(std::chrono::milliseconds(500));
+              std::this_thread::sleep_for(std::chrono::milliseconds(1));
           }
 
           gui::Application::GetInstance().PostToMainThread(
@@ -1236,6 +1319,44 @@ void GuiVisualizer::OnMenuItemSelected(gui::Menu::ItemId item_id) {
 
             break;
         }
+        case SETTINGS_RPC_BIND_ADDRESS: {
+#ifdef BUILD_RPC_INTERFACE
+            auto param_dlg = CreateRpcParamDialog(this, this->impl_->bind_address_.c_str(), 
+                [this](const char *address) {
+                    this->StopRPCInterface();
+                    this->impl_->bind_address_ = address;
+                    this->StartRPCInterface(this->impl_->bind_address_, 1000);
+                    this->CloseDialog();
+                }, 
+                [this]() {
+                    this->CloseDialog();
+                });
+            ShowDialog(param_dlg);
+#else
+            utility::LogWarning(
+                    "GuiVisualizer::OnMenuItemSelected: RPC interface not built");
+#endif
+            break;
+        }
+        case SETTINGS_RPC_SEND_ADDRESS: {
+#ifdef BUILD_RPC_INTERFACE
+            auto param_dlg = CreateRpcParamDialog(this, this->impl_->connection_address_.c_str(), 
+                [this](const char *address) {
+                    this->impl_->connection_address_ = address;
+                    utility::LogInfo("Setting ZMQ_REQ connection address on {}", this->impl_->connection_address_);
+                    this->impl_->connection_ = std::make_shared<io::rpc::Connection>(address, 1000, 1000);
+                    this->CloseDialog();
+                }, 
+                [this]() {
+                    this->CloseDialog();
+                });
+            ShowDialog(param_dlg);
+#else
+            utility::LogWarning(
+                    "GuiVisualizer::OnMenuItemSelected: RPC interface not built");
+#endif
+            break;
+        }
         case HELP_KEYS: {
             bool is_visible = !impl_->help_keys_->IsVisible();
             impl_->help_keys_->SetVisible(is_visible);
@@ -1301,14 +1422,12 @@ void GuiVisualizer::OnDragDropped(const char *path) {
     vis->LoadGeometry(path);
 }
 
-void GuiVisualizer::StartRPCInterface(const std::string &bind_address, const std::string &connection_address, int timeout) {
+void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
 #ifdef BUILD_RPC_INTERFACE
     impl_->receiver_ = std::make_shared<Receiver>(
-            this, impl_->scene_wgt_->GetScene(), bind_address, timeout);
-    impl_->connection_ = std::make_shared<io::rpc::Connection>(connection_address, timeout, timeout);
+            this, impl_->scene_wgt_->GetScene(), address, timeout);
     try {
-        utility::LogInfo("Starting ZMQ_REP socket on {}", bind_address);
-        utility::LogInfo("Connecting ZMQ_REQ socket on {}", connection_address);
+        utility::LogInfo("Starting ZMQ_REP socket on {}", address);
         impl_->receiver_->Start();
     } catch (std::exception &e) {
         utility::LogWarning("Failed to start RPC interface: {}", e.what());

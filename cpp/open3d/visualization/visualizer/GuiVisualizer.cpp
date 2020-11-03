@@ -1175,7 +1175,7 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
                       // down sampled 1 out of 4
                       this->impl_->scene_wgt_->GetScene()->SetDownsampleThreshold(seg_nb_points / 4);
                   });
-          auto progress_gap = 0.7 / (nb_points/seg_nb_points + 1);
+          auto progress_gap = 0.7f / (nb_points/seg_nb_points + 1);
           auto step = 0;
           for (size_t start=0;start<nb_points;start+=seg_nb_points){
               std::vector<size_t> indices;

@@ -35,6 +35,7 @@
 namespace zmq {
 class message_t;
 class socket_t;
+class context_t;
 }  // namespace zmq
 
 namespace open3d {
@@ -65,7 +66,7 @@ public:
     ReceiverBase(const ReceiverBase&) = delete;
     ReceiverBase& operator=(const ReceiverBase&) = delete;
 
-    ~ReceiverBase();
+    virtual ~ReceiverBase();
 
     /// Starts the receiver mainloop in a new thread.
     void Start();
@@ -120,6 +121,7 @@ private:
 
     const std::string address_;
     const int timeout_;
+    std::shared_ptr<zmq::context_t> context_;
     std::unique_ptr<zmq::socket_t> socket_;
     std::thread thread_;
     std::mutex mutex_;

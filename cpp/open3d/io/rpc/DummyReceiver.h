@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "open3d/io/rpc/MessageUtils.h"
 #include "open3d/io/rpc/ReceiverBase.h"
 #include "open3d/io/rpc/MessageUtils.h"
 

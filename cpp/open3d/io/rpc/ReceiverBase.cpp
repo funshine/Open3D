@@ -73,9 +73,10 @@ void ReceiverBase::Start() {
             keep_running_ = true;
             thread_ = std::thread(&ReceiverBase::Mainloop, this);
             // wait for the loop to start running
-            while (!loop_running_.load()) {
+            while (!loop_running_.load() && !mainloop_error_code_.load()) {
                 std::this_thread::yield();
             };
+
             if (!mainloop_error_code_.load()) {
                 LogDebug("ReceiverBase: started");
             }
@@ -115,12 +116,13 @@ std::runtime_error ReceiverBase::GetLastError() {
 }
 
 void ReceiverBase::Mainloop() {
+    context_ = GetZMQContext();
     socket_ = std::unique_ptr<zmq::socket_t>(
-            new zmq::socket_t(GetZMQContext(), ZMQ_REP));
+            new zmq::socket_t(*context_, ZMQ_REP));
 
-    socket_->setsockopt(ZMQ_LINGER, 1000);
-    socket_->setsockopt(ZMQ_RCVTIMEO, 1000);
-    socket_->setsockopt(ZMQ_SNDTIMEO, timeout_);
+    socket_->set(zmq::sockopt::linger, 1000);
+    socket_->set(zmq::sockopt::rcvtimeo, 1000);
+    socket_->set(zmq::sockopt::sndtimeo, timeout_);
 
     auto limits = msgpack::unpack_limit(0xffffffff,  // array
                                         0xffffffff,  // map
@@ -198,7 +200,7 @@ void ReceiverBase::Mainloop() {
                         break;
                     }
                 } catch (std::exception& err) {
-                    LogInfo("ReceiverBase::Mainloop: {}", err.what());
+                    LogInfo("ReceiverBase::Mainloop:a {}", err.what());
                     auto status = messages::Status::ErrorUnpackingFailed();
                     status.str += std::string(" with ") + err.what();
                     replies.push_back(CreateStatusMessage(status));
@@ -206,7 +208,7 @@ void ReceiverBase::Mainloop() {
                 }
             }
             if (replies.size() == 1) {
-                socket_->send(*replies[0]);
+                socket_->send(*replies[0], zmq::send_flags::none);
             } else {
                 size_t size = 0;
                 for (auto r : replies) {
@@ -218,7 +220,7 @@ void ReceiverBase::Mainloop() {
                     memcpy((char*)reply.data() + offset, r->data(), r->size());
                     offset += r->size();
                 }
-                socket_->send(reply);
+                socket_->send(reply, zmq::send_flags::none);
             }
         } catch (const zmq::error_t& err) {
             LogInfo("ReceiverBase::Mainloop: {}", err.what());

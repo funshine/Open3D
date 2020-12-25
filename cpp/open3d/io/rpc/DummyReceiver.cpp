@@ -32,8 +32,6 @@
 
 namespace open3d {
 namespace io {
-namespace rpc {
-
-}  // namespace rpc
+namespace rpc {}  // namespace rpc
 }  // namespace io
 }  // namespace open3d

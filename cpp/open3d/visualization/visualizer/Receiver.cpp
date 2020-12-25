@@ -33,6 +33,7 @@
 #include "open3d/io/rpc/MessageUtils.h"
 #include "open3d/io/rpc/Messages.h"
 #include "open3d/visualization/gui/Application.h"
+#include "open3d/visualization/gui/Window.h"
 #include "open3d/visualization/rendering/Material.h"
 #include "open3d/visualization/visualizer/GuiVisualizer.h"
 
@@ -68,8 +69,8 @@ std::shared_ptr<zmq::message_t> Receiver::ProcessMessage(
 
         errstr = "";
         if (!msg.data.vertices.CheckType(
-                {messages::TypeStr<float>(), messages::TypeStr<double>()},
-                errstr)) {
+                    {messages::TypeStr<float>(), messages::TypeStr<double>()},
+                    errstr)) {
             errstr = "Ignoring vertices. vertices have wrong data type:" +
                      errstr;
             LogInfo(errstr.c_str());
@@ -191,9 +192,9 @@ std::shared_ptr<zmq::message_t> Receiver::ProcessMessage(
             if (msg.data.faces.type == messages::TypeStr<int64_t>()) {
                 const int64_t* ptr = msg.data.faces.Ptr<int64_t>();
                 for (int64_t i = 0; i < msg.data.faces.shape[0]; ++i) {
-                    mesh->triangles_[i].x() = ptr[0];
-                    mesh->triangles_[i].y() = ptr[1];
-                    mesh->triangles_[i].z() = ptr[2];
+                    mesh->triangles_[i].x() = static_cast<int>(ptr[0]);
+                    mesh->triangles_[i].y() = static_cast<int>(ptr[1]);
+                    mesh->triangles_[i].z() = static_cast<int>(ptr[2]);
                     ptr += 3;
                 }
             }
@@ -205,8 +206,8 @@ std::shared_ptr<zmq::message_t> Receiver::ProcessMessage(
         // create a PointCloud
         auto pcd = std::make_shared<geometry::PointCloud>();
         if (!msg.data.vertices.CheckType(
-                {messages::TypeStr<float>(), messages::TypeStr<double>()},
-                errstr)) {
+                    {messages::TypeStr<float>(), messages::TypeStr<double>()},
+                    errstr)) {
             errstr = "Ignoring vertices. vertices have wrong data type:" +
                      errstr;
             LogInfo(errstr.c_str());

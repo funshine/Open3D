@@ -124,4 +124,5 @@ endmacro(APP)
 
 if (BUILD_GUI)
     APP(Open3DViewer Open3D Open3DViewer ${CMAKE_PROJECT_NAME})
+    APP(3DViewer Open3D 3DViewer ${CMAKE_PROJECT_NAME})
 endif()

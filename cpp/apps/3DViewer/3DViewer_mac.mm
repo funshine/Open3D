@@ -26,6 +26,7 @@
 
 #ifdef __APPLE__
 
+#include <GL/glew.h>
 #import <Cocoa/Cocoa.h>
 #import <CoreServices/CoreServices.h>
 
@@ -44,12 +45,12 @@
 // ----------------------------------------------------------------------------
 using namespace open3d::visualization::gui;
 
-class Open3DVisualizer : public open3d::visualization::O3DVisualizer {
+class Open3DVisualizer : public open3d::visualization::visualizer::O3DVisualizer {
     using Super = O3DVisualizer;
 public:
     Open3DVisualizer()
-        : open3d::visualization::O3DVisualizer("Open3D", WIDTH, HEIGHT) {
-        AddItemsToAppMenu({{"Make Default 3D Viewer", MAC_MAKE_DEFAULT_APP}});
+        : open3d::visualization::visualizer::O3DVisualizer("Open3D", WIDTH, HEIGHT) {
+//        AddItemsToAppMenu({{"Make Default 3D Viewer", MAC_MAKE_DEFAULT_APP}});
     }
 
 protected:
@@ -137,10 +138,10 @@ constexpr Menu::ItemId Open3DVisualizer::MAC_MAKE_DEFAULT_APP;  // for Xcode
 // ----------------------------------------------------------------------------
 static void LoadAndCreateWindow(const char *path) {
     auto vis = std::make_shared<Open3DVisualizer>();
-    bool is_path_valid = (path && path[0] != '\0');
-    if (is_path_valid) {
-        vis->LoadGeometry(path);
-    }
+//    bool is_path_valid = (path && path[0] != '\0');
+//    if (is_path_valid) {
+//        vis->LoadGeometry(path);
+//    }
     Application::GetInstance().AddWindow(vis);
 }
 

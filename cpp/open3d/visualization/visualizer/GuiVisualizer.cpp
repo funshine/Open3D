@@ -1220,7 +1220,7 @@ void GuiVisualizer::LoadPointcloudRealtime(const std::string& path) {
               gui::Application::GetInstance().PostToMainThread(
                   this, [this, segment, step]() {
                     auto scene = this->impl_->scene_wgt_->GetScene();
-                    scene->AddGeometry("geom_" + std::to_string(step), segment, rendering::Material());
+                    scene->AddGeometry("geom_" + std::to_string(step), segment.get(), rendering::Material());
                     // Make sure scene is redrawn
                     if (step < 1) {
                       // this is for update camera.
@@ -1452,31 +1452,6 @@ void GuiVisualizer::OnDragDropped(const char *path) {
     auto vis = this;
 #endif  // LOAD_IN_NEW_WINDOW
     vis->LoadGeometry(path);
-}
-
-void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
-#ifdef BUILD_RPC_INTERFACE
-    impl_->receiver_ = std::make_shared<Receiver>(
-            this, impl_->scene_wgt_->GetScene(), address, timeout);
-    try {
-        utility::LogInfo("Starting ZMQ_REP socket on {}", address);
-        impl_->receiver_->Start();
-    } catch (std::exception &e) {
-        utility::LogWarning("Failed to start RPC interface: {}", e.what());
-    }
-#else
-    utility::LogWarning(
-            "GuiVisualizer::StartRPCInterface: RPC interface not built");
-#endif
-}
-
-void GuiVisualizer::StopRPCInterface() {
-#ifdef BUILD_RPC_INTERFACE
-    impl_->receiver_.reset();
-#else
-    utility::LogWarning(
-            "GuiVisualizer::StopRPCInterface: RPC interface not built");
-#endif
 }
 
 }  // namespace visualization

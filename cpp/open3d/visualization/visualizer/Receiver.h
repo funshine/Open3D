@@ -1,3 +1,4 @@
+
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
@@ -36,14 +37,14 @@ namespace gui {
 class Window;
 }
 
-/// Receiver implementation for the GuiVisualizer
+/// Receiver implementation which interfaces with the Open3DScene and a Window.
 class Receiver : public io::rpc::ReceiverBase {
 public:
     Receiver(gui::Window* window,
              std::shared_ptr<rendering::Open3DScene> scene,
              const std::string& address,
              int timeout)
-            : ReceiverBase(address, timeout), window_(window), scene_(scene) {}
+        : ReceiverBase(address, timeout), window_(window), scene_(scene) {}
 
     std::shared_ptr<zmq::message_t> ProcessMessage(
             const io::rpc::messages::Request& req,

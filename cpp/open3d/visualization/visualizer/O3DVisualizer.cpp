@@ -316,12 +316,16 @@ struct O3DVisualizer::Impl {
     Window *window_ = nullptr;
     SceneWidget *scene_ = nullptr;
 
+    int app_menu_custom_items_index_ = -1;
+    // We only keep pointers here because that way we don't have to release
+    // all the shared_ptrs at destruction just to ensure that the gui gets
+    // destroyed before the Window, because the Window will do that for us.
+    Menu* app_menu_;
+
     struct {
         // We only keep pointers here because that way we don't have to release
         // all the shared_ptrs at destruction just to ensure that the gui gets
         // destroyed before the Window, because the Window will do that for us.
-        int app_menu_custom_items_index_ = -1;
-        std::shared_ptr<Menu> app_menu_;
         Menu *actions_menu;
         std::unordered_map<int, std::function<void(O3DVisualizer &)>>
                 menuid2action;
@@ -1740,10 +1744,10 @@ O3DVisualizer::O3DVisualizer(const std::string &title, int width, int height)
     auto app_menu = std::make_shared<Menu>();
     app_menu->AddItem("About", MENU_ABOUT);
     app_menu->AddSeparator();
-    impl_->settings.app_menu_custom_items_index_ = app_menu->GetNumberOfItems();
+    impl_->app_menu_custom_items_index_ = app_menu->GetNumberOfItems();
     app_menu->AddItem("Quit", MENU_CLOSE, gui::KEY_Q);
     menu->AddMenu("Open3D", app_menu);
-    impl_->settings.app_menu_ = app_menu;
+    impl_->app_menu_ = app_menu.get();
 #endif  // __APPLE__
     auto file_menu = std::make_shared<Menu>();
     file_menu->AddItem("Load Geometry...", MENU_LOAD_GEOMETRY);
@@ -1823,13 +1827,13 @@ void O3DVisualizer::AddItemsToAppMenu(
     return;  // application menu only exists on macOS
 #endif
 
-    if (impl_->settings.app_menu_ && impl_->settings.app_menu_custom_items_index_ >= 0) {
+    if (impl_->app_menu_ && impl_->app_menu_custom_items_index_ >= 0) {
         for (auto &it : items) {
-            impl_->settings.app_menu_->InsertItem(impl_->settings.app_menu_custom_items_index_++,
+            impl_->app_menu_->InsertItem(impl_->app_menu_custom_items_index_++,
                                          it.first.c_str(), it.second);
         }
-        impl_->settings.app_menu_->InsertSeparator(
-                impl_->settings.app_menu_custom_items_index_++);
+        impl_->app_menu_->InsertSeparator(
+                impl_->app_menu_custom_items_index_++);
     }
 }
 

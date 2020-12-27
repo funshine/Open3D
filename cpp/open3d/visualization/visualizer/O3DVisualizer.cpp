@@ -279,6 +279,40 @@ private:
     }
 };
 
+class LabeledProgressBar : public Vert {
+    using Super = Vert;
+
+public:
+    LabeledProgressBar(const char* text, float value = 0.0f) : Vert() {
+        label_ = std::make_shared<Label>(text);
+        AddChild(label_);
+        AddChild(std::make_shared<Label>(" "));
+        progressbar_ = std::make_shared<ProgressBar>();
+        progressbar_->SetValue(value);
+        AddChild(progressbar_);
+    }
+
+    const char* GetText() const { return label_->GetText(); }
+
+    void SetText(const char* text) { label_->SetText(text); }
+
+    /// ProgressBar values ranges from 0.0 (incomplete) to 1.0 (complete)
+    void SetValue(float value) { progressbar_->SetValue(value); }
+
+    float GetValue() const { return progressbar_->GetValue(); }
+
+    Size CalcPreferredSize(const Theme &theme) const override {
+        auto label_pref = label_->CalcPreferredSize(theme);
+        auto progressbar_pref = progressbar_->CalcPreferredSize(theme);
+        int h = label_pref.height + progressbar_pref.height + 2 * theme.font_size;
+        return Size(std::max(label_pref.width, 30 * theme.font_size), h);
+    }
+
+private:
+    std::shared_ptr<Label> label_;
+    std::shared_ptr<ProgressBar> progressbar_;
+};
+
 struct LightingProfile {
     std::string name;
     Open3DScene::LightingProfile profile;
@@ -321,6 +355,8 @@ struct O3DVisualizer::Impl {
     // all the shared_ptrs at destruction just to ensure that the gui gets
     // destroyed before the Window, because the Window will do that for us.
     Menu* app_menu_;
+
+    LabeledProgressBar* progressbar_;
 
     struct {
         // We only keep pointers here because that way we don't have to release
@@ -405,6 +441,9 @@ struct O3DVisualizer::Impl {
 
         auto o3dscene = scene_->GetScene();
         o3dscene->SetBackground(ui_state_.bg_color);
+
+        progressbar_ = new LabeledProgressBar("Progress...");
+        w->AddChild(GiveOwnership(progressbar_));
 
         MakeSettingsUI();
         SetMouseMode(SceneWidget::Controls::ROTATE_CAMERA);
@@ -878,28 +917,14 @@ struct O3DVisualizer::Impl {
     }
 
     void LoadGeometry(const std::string &path) {
-        auto progressbar = std::make_shared<gui::ProgressBar>();
-        gui::Application::GetInstance().PostToMainThread(window_, [this, path,
-                progressbar]() {
-          auto &theme = window_->GetTheme();
-          auto loading_dlg = std::make_shared<gui::Dialog>("Loading");
-          auto vert =
-                  std::make_shared<gui::Vert>(0, gui::Margins(theme.font_size));
+        gui::Application::GetInstance().PostToMainThread(window_, [this, path]() {
           auto loading_text = std::string("Loading ") + path;
-          vert->AddChild(std::make_shared<gui::Label>(loading_text.c_str()));
-          vert->AddFixed(theme.font_size);
-          vert->AddChild(progressbar);
-          loading_dlg->AddChild(vert);
-          window_->ShowDialog(loading_dlg);
+          this->progressbar_->SetText(loading_text.c_str());
+          this->progressbar_->SetValue(0.0f);
+          this->ShowProgressBar(true);
         });
 
-        gui::Application::GetInstance().RunInThread([this, path, progressbar]() {
-          auto UpdateProgress = [this, progressbar](float value) {
-            gui::Application::GetInstance().PostToMainThread(
-                    window_,
-                    [progressbar, value]() { progressbar->SetValue(value); });
-          };
-
+        gui::Application::GetInstance().RunInThread([this, path]() {
           auto geometry_type = io::ReadFileGeometryType(path);
           auto geometry = std::shared_ptr<geometry::Geometry3D>();
           if (geometry_type & io::CONTAINS_POINTS) {
@@ -908,9 +933,8 @@ struct O3DVisualizer::Impl {
               const float ioProgressAmount = 0.5f;
               try {
                   io::ReadPointCloudOption opt;
-                  opt.update_progress = [ioProgressAmount,
-                          UpdateProgress](double percent) -> bool {
-                    UpdateProgress(ioProgressAmount * float(percent / 100.0));
+                  opt.update_progress = [this, ioProgressAmount](double percent) -> bool {
+                    this->progressbar_->SetValue(ioProgressAmount * float(percent / 100.0));
                     return true;
                   };
                   success = io::ReadPointCloud(path, *cloud, opt);
@@ -919,13 +943,13 @@ struct O3DVisualizer::Impl {
               }
               if (success) {
                   utility::LogInfo("Successfully read {}", path.c_str());
-                  UpdateProgress(ioProgressAmount);
+                  this->progressbar_->SetValue(ioProgressAmount);
                   if (!cloud->HasNormals()) {
                       cloud->EstimateNormals();
                   }
-                  UpdateProgress(0.666f);
+                  this->progressbar_->SetValue(0.666f);
                   cloud->NormalizeNormals();
-                  UpdateProgress(0.75f);
+                  this->progressbar_->SetValue(0.75f);
                   geometry = cloud;
               } else {
                   utility::LogWarning("Failed to read points {}", path.c_str());
@@ -935,14 +959,14 @@ struct O3DVisualizer::Impl {
 
           if (geometry) {
               gui::Application::GetInstance().PostToMainThread(
-                      window_, [this, geometry]() {
-                        this->AddGeometry("Loaded", geometry, nullptr, nullptr, "", 0.0, true);
-                        this->window_->CloseDialog();
+                      window_, [this, geometry, path]() {
+                        this->AddGeometry(utility::filesystem::GetFileNameWithoutDirectory(path), geometry, nullptr, nullptr, "", 0.0, true);
+                        this->ShowProgressBar(false);
                       });
           } else {
               gui::Application::GetInstance().PostToMainThread(window_, [this,
                       path]() {
-                this->window_->CloseDialog();
+                this->ShowProgressBar(false);
                 auto msg = std::string("Could not load '") + path + "'.";
                 this->window_->ShowMessageBox("Error", msg.c_str());
               });
@@ -1078,6 +1102,12 @@ struct O3DVisualizer::Impl {
         if (menubar) {  // might not have been created yet
             menubar->SetChecked(MENU_SETTINGS, show);
         }
+        window_->SetNeedsLayout();
+    }
+
+    void ShowProgressBar(bool show) {
+        ui_state_.show_progressbar = show;
+        progressbar_->SetVisible(show);
         window_->SetNeedsLayout();
     }
 
@@ -1334,6 +1364,7 @@ struct O3DVisualizer::Impl {
         }
 
         ShowSettings(ui_state_.show_settings, false);
+        ShowProgressBar(ui_state_.show_progressbar);
         SetShader(ui_state_.scene_shader);
         SetBackground(ui_state_.bg_color, nullptr);
         ShowSkybox(ui_state_.show_skybox);
@@ -1784,7 +1815,8 @@ O3DVisualizer::O3DVisualizer(const std::string &title, int width, int height)
     SetOnMenuItemActivated(MENU_SETTINGS,
                            [this]() { this->impl_->OnToggleSettings(); });
 
-    impl_->ShowSettings(false, false);
+    impl_->ShowSettings(true, false);
+    impl_->ShowProgressBar(false);
 }
 
 O3DVisualizer::~O3DVisualizer() {}
@@ -2023,6 +2055,14 @@ void O3DVisualizer::Layout(const Theme &theme) {
                                              settings_width, f.height));
     } else {
         impl_->scene_->SetFrame(f);
+    }
+
+    if(impl_->progressbar_->IsVisible()) {
+        auto progressbar_size = impl_->progressbar_->CalcPreferredSize(theme);
+        impl_->progressbar_->SetFrame(Rect(f.GetLeft(),
+                                           f.GetBottom() - progressbar_size.height,
+                                           progressbar_size.width,
+                                           progressbar_size.height));
     }
 
     Super::Layout(theme);

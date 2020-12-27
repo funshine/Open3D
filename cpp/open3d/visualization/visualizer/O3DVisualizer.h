@@ -73,6 +73,7 @@ public:
     struct UIState {
         Shader scene_shader = Shader::STANDARD;
         bool show_settings = false;
+        bool show_progressbar = false;
         bool show_skybox = false;
         bool show_axes = false;
         bool is_animating = false;

@@ -138,10 +138,10 @@ constexpr Menu::ItemId Open3DVisualizer::MAC_MAKE_DEFAULT_APP;  // for Xcode
 // ----------------------------------------------------------------------------
 static void LoadAndCreateWindow(const char *path) {
     auto vis = std::make_shared<Open3DVisualizer>();
-//    bool is_path_valid = (path && path[0] != '\0');
-//    if (is_path_valid) {
-//        vis->LoadGeometry(path);
-//    }
+    bool is_path_valid = (path && path[0] != '\0');
+    if (is_path_valid) {
+        vis->LoadGeometry(path);
+    }
     Application::GetInstance().AddWindow(vis);
 }
 

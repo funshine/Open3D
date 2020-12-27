@@ -120,6 +120,9 @@ public:
                      double time = 0.0,
                      bool is_visible = true);
 
+    /// Loads asynchronously, will return immediately.
+    void LoadGeometry(const std::string& path);
+
     void RemoveGeometry(const std::string& name);
 
     void ShowGeometry(const std::string& name, bool show);

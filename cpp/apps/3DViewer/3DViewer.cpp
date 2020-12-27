@@ -53,10 +53,10 @@ int Run(int argc, const char *argv[]) {
     app.Initialize(argc, argv);
 
     auto vis = std::make_shared<visualizer::O3DVisualizer>("Open3D", WIDTH, HEIGHT);
-    //bool is_path_valid = (path && path[0] != '\0');
-    //if (is_path_valid) {
-    //    vis->LoadGeometry(path);
-    //}
+    bool is_path_valid = (path && path[0] != '\0');
+    if (is_path_valid) {
+        vis->LoadGeometry(path);
+    }
     gui::Application::GetInstance().AddWindow(vis);
     // when Run() ends, Filament will be stopped, so we can't be holding on
     // to any GUI objects.

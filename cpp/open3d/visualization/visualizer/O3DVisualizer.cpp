@@ -34,7 +34,11 @@
 #include "open3d/geometry/Image.h"
 #include "open3d/geometry/LineSet.h"
 #include "open3d/geometry/PointCloud.h"
+#include "open3d/io/FileFormatIO.h"
 #include "open3d/io/ImageIO.h"
+#include "open3d/io/ModelIO.h"
+#include "open3d/io/PointCloudIO.h"
+#include "open3d/io/TriangleMeshIO.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/geometry/TriangleMesh.h"
 #include "open3d/utility/Console.h"
@@ -50,6 +54,7 @@
 #include "open3d/visualization/gui/Layout.h"
 #include "open3d/visualization/gui/ListView.h"
 #include "open3d/visualization/gui/NumberEdit.h"
+#include "open3d/visualization/gui/ProgressBar.h"
 #include "open3d/visualization/gui/SceneWidget.h"
 #include "open3d/visualization/gui/Slider.h"
 #include "open3d/visualization/gui/TabControl.h"
@@ -80,6 +85,7 @@ static const std::string kDefaultIBL = "default";
 
 enum MenuId {
     MENU_ABOUT = 0,
+    MENU_LOAD_GEOMETRY,
     MENU_EXPORT_RGB,
     MENU_CLOSE,
     MENU_SETTINGS,
@@ -867,6 +873,79 @@ struct O3DVisualizer::Impl {
         scene_->ForceRedraw();
     }
 
+    void LoadGeometry(const std::string &path) {
+        auto progressbar = std::make_shared<gui::ProgressBar>();
+        gui::Application::GetInstance().PostToMainThread(window_, [this, path,
+                progressbar]() {
+          auto &theme = window_->GetTheme();
+          auto loading_dlg = std::make_shared<gui::Dialog>("Loading");
+          auto vert =
+                  std::make_shared<gui::Vert>(0, gui::Margins(theme.font_size));
+          auto loading_text = std::string("Loading ") + path;
+          vert->AddChild(std::make_shared<gui::Label>(loading_text.c_str()));
+          vert->AddFixed(theme.font_size);
+          vert->AddChild(progressbar);
+          loading_dlg->AddChild(vert);
+          window_->ShowDialog(loading_dlg);
+        });
+
+        gui::Application::GetInstance().RunInThread([this, path, progressbar]() {
+          auto UpdateProgress = [this, progressbar](float value) {
+            gui::Application::GetInstance().PostToMainThread(
+                    window_,
+                    [progressbar, value]() { progressbar->SetValue(value); });
+          };
+
+          auto geometry_type = io::ReadFileGeometryType(path);
+          auto geometry = std::shared_ptr<geometry::Geometry3D>();
+          if (geometry_type & io::CONTAINS_POINTS) {
+              auto cloud = std::make_shared<geometry::PointCloud>();
+              bool success = false;
+              const float ioProgressAmount = 0.5f;
+              try {
+                  io::ReadPointCloudOption opt;
+                  opt.update_progress = [ioProgressAmount,
+                          UpdateProgress](double percent) -> bool {
+                    UpdateProgress(ioProgressAmount * float(percent / 100.0));
+                    return true;
+                  };
+                  success = io::ReadPointCloud(path, *cloud, opt);
+              } catch (...) {
+                  success = false;
+              }
+              if (success) {
+                  utility::LogInfo("Successfully read {}", path.c_str());
+                  UpdateProgress(ioProgressAmount);
+                  if (!cloud->HasNormals()) {
+                      cloud->EstimateNormals();
+                  }
+                  UpdateProgress(0.666f);
+                  cloud->NormalizeNormals();
+                  UpdateProgress(0.75f);
+                  geometry = cloud;
+              } else {
+                  utility::LogWarning("Failed to read points {}", path.c_str());
+                  cloud.reset();
+              }
+          }
+
+          if (geometry) {
+              gui::Application::GetInstance().PostToMainThread(
+                      window_, [this, geometry]() {
+                        this->AddGeometry("Loaded", geometry, nullptr, nullptr, "", 0.0, true);
+                        this->window_->CloseDialog();
+                      });
+          } else {
+              gui::Application::GetInstance().PostToMainThread(window_, [this,
+                      path]() {
+                this->window_->CloseDialog();
+                auto msg = std::string("Could not load '") + path + "'.";
+                this->window_->ShowMessageBox("Error", msg.c_str());
+              });
+          }
+        });
+    }
+
     void RemoveGeometry(const std::string &name) {
         std::string group;
         for (size_t i = 0; i < objects_.size(); ++i) {
@@ -1559,6 +1638,28 @@ struct O3DVisualizer::Impl {
         window_->ShowDialog(dlg);
     }
 
+    void OnLoadGeometry() {
+        auto dlg = std::make_shared<gui::FileDialog>(
+                gui::FileDialog::Mode::OPEN, "Open Geometry", window_->GetTheme());
+        dlg->AddFilter(".xyz .xyzn .xyzrgb .ply .pcd .pts",
+                       "Point cloud files (.xyz, .xyzn, .xyzrgb, .ply, "
+                       ".pcd, .pts)");
+        dlg->AddFilter(".ply", "Polygon files (.ply)");
+        dlg->AddFilter(".xyz", "ASCII point cloud files (.xyz)");
+        dlg->AddFilter(".xyzn", "ASCII point cloud with normals (.xyzn)");
+        dlg->AddFilter(".xyzrgb",
+                       "ASCII point cloud files with colors (.xyzrgb)");
+        dlg->AddFilter(".pcd", "Point Cloud Data files (.pcd)");
+        dlg->AddFilter(".pts", "3D Points files (.pts)");
+        dlg->AddFilter("", "All files");
+        dlg->SetOnCancel([this]() { this->window_->CloseDialog(); });
+        dlg->SetOnDone([this](const char *path) {
+          this->window_->CloseDialog();
+          this->LoadGeometry(path);
+        });
+        window_->ShowDialog(dlg);
+    }
+
     void OnExportRGB() {
         auto dlg = std::make_shared<gui::FileDialog>(
                 gui::FileDialog::Mode::SAVE, "Save File", window_->GetTheme());
@@ -1645,6 +1746,8 @@ O3DVisualizer::O3DVisualizer(const std::string &title, int width, int height)
     impl_->settings.app_menu_ = app_menu;
 #endif  // __APPLE__
     auto file_menu = std::make_shared<Menu>();
+    file_menu->AddItem("Load Geometry...", MENU_LOAD_GEOMETRY);
+    file_menu->AddSeparator();
     file_menu->AddItem("Export Current Image...", MENU_EXPORT_RGB);
     file_menu->AddSeparator();
 #if WIN32
@@ -1669,6 +1772,8 @@ O3DVisualizer::O3DVisualizer(const std::string &title, int width, int height)
     Application::GetInstance().SetMenubar(menu);
 
     SetOnMenuItemActivated(MENU_ABOUT, [this]() { this->impl_->OnAbout(); });
+    SetOnMenuItemActivated(MENU_LOAD_GEOMETRY,
+                           [this]() { this->impl_->OnLoadGeometry(); });
     SetOnMenuItemActivated(MENU_EXPORT_RGB,
                            [this]() { this->impl_->OnExportRGB(); });
     SetOnMenuItemActivated(MENU_CLOSE, [this]() { this->impl_->OnClose(); });
@@ -1778,6 +1883,10 @@ void O3DVisualizer::AddGeometry(const std::string &name,
                                 double time /*= 0.0*/,
                                 bool is_visible /*= true*/) {
     impl_->AddGeometry(name, nullptr, tgeom, material, group, time, is_visible);
+}
+
+void O3DVisualizer::LoadGeometry(const std::string &path) {
+    return impl_->LoadGeometry(path);
 }
 
 void O3DVisualizer::RemoveGeometry(const std::string &name) {

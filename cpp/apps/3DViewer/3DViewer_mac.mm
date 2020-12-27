@@ -50,7 +50,7 @@ class Open3DVisualizer : public open3d::visualization::visualizer::O3DVisualizer
 public:
     Open3DVisualizer()
         : open3d::visualization::visualizer::O3DVisualizer("Open3D", WIDTH, HEIGHT) {
-//        AddItemsToAppMenu({{"Make Default 3D Viewer", MAC_MAKE_DEFAULT_APP}});
+        AddItemsToAppMenu({{"Make Default 3D Viewer", MAC_MAKE_DEFAULT_APP}});
     }
 
 protected:

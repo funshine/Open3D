@@ -173,6 +173,11 @@ public:
     void StopRPCInterface();
 
 protected:
+    // Add custom items to the application menu (only relevant on macOS)
+    void AddItemsToAppMenu(
+            const std::vector<std::pair<std::string, gui::Menu::ItemId>>&
+            items);
+
     void Layout(const gui::Theme& theme);
 
 private:

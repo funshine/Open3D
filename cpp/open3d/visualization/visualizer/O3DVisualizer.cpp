@@ -314,6 +314,8 @@ struct O3DVisualizer::Impl {
         // We only keep pointers here because that way we don't have to release
         // all the shared_ptrs at destruction just to ensure that the gui gets
         // destroyed before the Window, because the Window will do that for us.
+        int app_menu_custom_items_index_ = -1;
+        std::shared_ptr<Menu> app_menu_;
         Menu *actions_menu;
         std::unordered_map<int, std::function<void(O3DVisualizer &)>>
                 menuid2action;
@@ -1636,12 +1638,20 @@ O3DVisualizer::O3DVisualizer(const std::string &title, int width, int height)
     // menu (no matter its name)
     auto app_menu = std::make_shared<Menu>();
     app_menu->AddItem("About", MENU_ABOUT);
+    app_menu->AddSeparator();
+    impl_->settings.app_menu_custom_items_index_ = app_menu->GetNumberOfItems();
+    app_menu->AddItem("Quit", MENU_CLOSE, gui::KEY_Q);
     menu->AddMenu("Open3D", app_menu);
+    impl_->settings.app_menu_ = app_menu;
 #endif  // __APPLE__
     auto file_menu = std::make_shared<Menu>();
     file_menu->AddItem("Export Current Image...", MENU_EXPORT_RGB);
     file_menu->AddSeparator();
-    file_menu->AddItem("Close Window", MENU_CLOSE, KeyName::KEY_W);
+#if WIN32
+    file_menu->AddItem("Exit", MENU_CLOSE, KeyName::KEY_W);
+#elif !defined(__APPLE__)  // quit goes in app menu on macOS
+    file_menu->AddItem("Quit", MENU_CLOSE, gui::KEY_Q);
+#endif
     menu->AddMenu("File", file_menu);
 
     auto actions_menu = std::make_shared<Menu>();
@@ -1700,6 +1710,22 @@ void O3DVisualizer::StopRPCInterface() {
     utility::LogWarning(
             "O3DVisualizer::StopRPCInterface: RPC interface not built");
 #endif
+}
+
+void O3DVisualizer::AddItemsToAppMenu(
+        const std::vector<std::pair<std::string, Menu::ItemId>> &items) {
+#if !defined(__APPLE__)
+    return;  // application menu only exists on macOS
+#endif
+
+    if (impl_->settings.app_menu_ && impl_->settings.app_menu_custom_items_index_ >= 0) {
+        for (auto &it : items) {
+            impl_->settings.app_menu_->InsertItem(impl_->settings.app_menu_custom_items_index_++,
+                                         it.first.c_str(), it.second);
+        }
+        impl_->settings.app_menu_->InsertSeparator(
+                impl_->settings.app_menu_custom_items_index_++);
+    }
 }
 
 void O3DVisualizer::AddAction(const std::string &name,

@@ -39,6 +39,8 @@
 #include "open3d/io/ModelIO.h"
 #include "open3d/io/PointCloudIO.h"
 #include "open3d/io/TriangleMeshIO.h"
+#include "open3d/io/rpc/Connection.h"
+#include "open3d/io/rpc/RemoteFunctions.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/geometry/TriangleMesh.h"
 #include "open3d/utility/Console.h"
@@ -58,6 +60,7 @@
 #include "open3d/visualization/gui/SceneWidget.h"
 #include "open3d/visualization/gui/Slider.h"
 #include "open3d/visualization/gui/TabControl.h"
+#include "open3d/visualization/gui/TextEdit.h"
 #include "open3d/visualization/gui/Theme.h"
 #include "open3d/visualization/gui/TreeView.h"
 #include "open3d/visualization/gui/VectorEdit.h"
@@ -71,6 +74,7 @@
 
 using namespace open3d::visualization::gui;
 using namespace open3d::visualization::rendering;
+using namespace open3d::io::rpc;
 
 namespace open3d {
 namespace visualization {
@@ -337,6 +341,7 @@ struct O3DVisualizer::Impl {
     std::function<void(double)> on_animation_;
     std::function<bool()> on_animation_tick_;
     std::shared_ptr<Receiver> receiver_;
+    std::shared_ptr<Connection> connection_;
 
     UIState ui_state_;
     bool can_auto_show_settings_ = true;
@@ -376,6 +381,14 @@ struct O3DVisualizer::Impl {
         Button *new_selection_set;
         Button *delete_selection_set;
         ListView *selection_sets;
+
+#ifdef BUILD_RPC_INTERFACE
+        CollapsableVert* rpc_panel;
+        TextEdit* rpc_conn_addr;
+        SmallButton* set_conn_addr;
+        TextEdit* rpc_bind_addr;
+        SmallButton* start_rpc_bind;
+#endif
 
         CollapsableVert *scene_panel;
         Checkbox *show_skybox;
@@ -551,6 +564,54 @@ struct O3DVisualizer::Impl {
         h->AddChild(GiveOwnership(settings.delete_selection_set));
         settings.pick_panel->AddChild(GiveOwnership(h));
         settings.pick_panel->AddChild(GiveOwnership(settings.selection_sets));
+
+#ifdef BUILD_RPC_INTERFACE
+        // RPC controls
+        settings.rpc_panel =
+                new CollapsableVert("RPC", 0, margins);
+        settings.panel->AddChild(GiveOwnership(settings.rpc_panel));
+
+        auto* vgrid = new VGrid(2, v_spacing);
+        settings.rpc_conn_addr = new TextEdit();
+        settings.rpc_conn_addr->SetText("tcp://127.0.0.1:51454");
+        settings.set_conn_addr = new SmallButton("Set");
+        settings.set_conn_addr->SetOnClicked(
+            [this]() {
+                auto addr = std::string(settings.rpc_conn_addr->GetText());
+                utility::LogInfo("Setting connection address to {}", addr);
+                this->connection_ = std::make_shared<Connection>(addr, 1000, 1000);
+            });
+
+        vgrid->AddChild(GiveOwnership(settings.rpc_conn_addr));
+        vgrid->AddChild(GiveOwnership(settings.set_conn_addr));
+        settings.rpc_panel->AddChild(std::make_shared<Label>("Send Addr"));
+        settings.rpc_panel->AddChild(GiveOwnership(vgrid));
+        settings.rpc_panel->AddFixed(half_em);
+
+        vgrid = new VGrid(2, v_spacing);
+        settings.rpc_bind_addr = new TextEdit();
+        settings.rpc_bind_addr->SetText("tcp://127.0.0.1:51454");
+        settings.start_rpc_bind = new SmallButton("Start");
+        settings.start_rpc_bind->SetOnClicked(
+            [this]() {
+                if (std::string(settings.start_rpc_bind->GetText()) == "Start") {
+                    auto addr = std::string(settings.rpc_bind_addr->GetText());
+                    this->StopRPCInterface();
+                    this->StartRPCInterface(addr, 1000);
+                    settings.start_rpc_bind->SetText("Stop");
+                }
+                else if (std::string(settings.start_rpc_bind->GetText()) == "Stop") {
+                    this->StopRPCInterface();
+                    settings.start_rpc_bind->SetText("Start");
+                }
+            });
+
+        vgrid->AddChild(GiveOwnership(settings.rpc_bind_addr));
+        vgrid->AddChild(GiveOwnership(settings.start_rpc_bind));
+        settings.rpc_panel->AddChild(std::make_shared<Label>("Recv Addr"));
+        settings.rpc_panel->AddChild(GiveOwnership(vgrid));
+        settings.rpc_panel->AddFixed(half_em);
+#endif
 
         // Scene controls
         settings.scene_panel = new CollapsableVert("Scene", v_spacing, margins);
@@ -795,6 +856,35 @@ struct O3DVisualizer::Impl {
 
         settings.actions = new ButtonList(v_spacing);
         settings.actions_panel->AddChild(GiveOwnership(settings.actions));
+    }
+
+    void StartRPCInterface(const std::string& address, int timeout) {
+#ifdef BUILD_RPC_INTERFACE
+        this->receiver_ = std::make_shared<Receiver>(
+            this->window_, this->scene_->GetScene(), address, timeout);
+        try {
+            utility::LogInfo("Starting to listen on {}", address);
+            this->receiver_->Start();
+        }
+        catch (std::exception& e) {
+            utility::LogWarning("Failed to start RPC interface: {}", e.what());
+        }
+#else
+        utility::LogWarning(
+            "StartRPCInterface: RPC interface not built");
+#endif
+    }
+
+    void StopRPCInterface() {
+#ifdef BUILD_RPC_INTERFACE
+        if (this->receiver_) {
+            utility::LogInfo("Stopping RPC interface");
+        }
+        this->receiver_.reset();
+#else
+        utility::LogWarning(
+            "StopRPCInterface: RPC interface not built");
+#endif
     }
 
     void AddGeometry(const std::string &name,
@@ -1826,31 +1916,11 @@ Open3DScene *O3DVisualizer::GetScene() const {
 }
 
 void O3DVisualizer::StartRPCInterface(const std::string &address, int timeout) {
-#ifdef BUILD_RPC_INTERFACE
-    impl_->receiver_ = std::make_shared<Receiver>(
-            this, impl_->scene_->GetScene(), address, timeout);
-    try {
-        utility::LogInfo("Starting to listen on {}", address);
-        impl_->receiver_->Start();
-    } catch (std::exception &e) {
-        utility::LogWarning("Failed to start RPC interface: {}", e.what());
-    }
-#else
-    utility::LogWarning(
-            "O3DVisualizer::StartRPCInterface: RPC interface not built");
-#endif
+    impl_->StartRPCInterface(address, timeout);
 }
 
 void O3DVisualizer::StopRPCInterface() {
-#ifdef BUILD_RPC_INTERFACE
-    if (impl_->receiver_) {
-        utility::LogInfo("Stopping RPC interface");
-    }
-    impl_->receiver_.reset();
-#else
-    utility::LogWarning(
-            "O3DVisualizer::StopRPCInterface: RPC interface not built");
-#endif
+    impl_->StopRPCInterface();
 }
 
 void O3DVisualizer::AddItemsToAppMenu(

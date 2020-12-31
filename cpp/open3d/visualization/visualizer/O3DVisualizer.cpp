@@ -388,6 +388,8 @@ struct O3DVisualizer::Impl {
         SmallButton* set_conn_addr;
         TextEdit* rpc_bind_addr;
         SmallButton* start_rpc_bind;
+        Checkbox* load_and_display;
+        Checkbox* load_and_send;
 #endif
 
         CollapsableVert *scene_panel;
@@ -610,6 +612,22 @@ struct O3DVisualizer::Impl {
         vgrid->AddChild(GiveOwnership(settings.start_rpc_bind));
         settings.rpc_panel->AddChild(std::make_shared<Label>("Recv Addr"));
         settings.rpc_panel->AddChild(GiveOwnership(vgrid));
+        settings.rpc_panel->AddFixed(half_em);
+
+        settings.load_and_display = new Checkbox("Load and Display");
+        settings.load_and_display->SetChecked(true);
+        settings.load_and_display->SetOnChecked([](bool is_checked) {});
+        settings.load_and_send = new Checkbox("Load and Send to RPC");
+        settings.load_and_send->SetOnChecked([this](bool is_checked) {
+            if (is_checked && !this->connection_) {
+                auto addr = std::string(settings.rpc_conn_addr->GetText());
+                utility::LogInfo("Setting connection address to {}", addr);
+                this->connection_ = std::make_shared<Connection>(addr, 1000, 1000);
+            }
+        });
+        settings.rpc_panel->AddChild(GiveOwnership(settings.load_and_display));
+        settings.rpc_panel->AddFixed(half_em);
+        settings.rpc_panel->AddChild(GiveOwnership(settings.load_and_send));
         settings.rpc_panel->AddFixed(half_em);
 #endif
 
@@ -1003,6 +1021,10 @@ struct O3DVisualizer::Impl {
         // depend on the bounds.
         SetPointSize(ui_state_.point_size);
 
+        if(objects_.size() == 1) {
+            ResetCameraToDefault();
+        }
+
         scene_->ForceRedraw();
     }
 
@@ -1048,9 +1070,24 @@ struct O3DVisualizer::Impl {
           }
 
           if (geometry) {
+              auto name = utility::filesystem::GetFileNameWithoutDirectory(path);
+#ifdef BUILD_RPC_INTERFACE
+              if (this->settings.load_and_send->IsChecked() && this->connection_) {
+                  auto pcd = std::static_pointer_cast<const geometry::PointCloud>(geometry);
+                  SetPointCloud(*pcd, name, 0, "", this->connection_);
+              }
+              if (this->settings.load_and_display->IsChecked()) {
+#else
+              {
+#endif
+                  gui::Application::GetInstance().PostToMainThread(
+                          window_, [this, geometry, name]() {
+                            this->AddGeometry(name, geometry, nullptr, nullptr, "", 0.0, true);
+                          });
+              }
+
               gui::Application::GetInstance().PostToMainThread(
-                      window_, [this, geometry, path]() {
-                        this->AddGeometry(utility::filesystem::GetFileNameWithoutDirectory(path), geometry, nullptr, nullptr, "", 0.0, true);
+                      window_, [this]() {
                         this->ShowProgressBar(false);
                       });
           } else {

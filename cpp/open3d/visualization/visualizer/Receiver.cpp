@@ -35,6 +35,7 @@
 #include "open3d/visualization/gui/Application.h"
 #include "open3d/visualization/gui/Window.h"
 #include "open3d/visualization/rendering/Material.h"
+#include "open3d/visualization/visualizer/O3DVisualizer.h"
 
 using namespace open3d::io::rpc;
 using namespace open3d::utility;
@@ -315,6 +316,15 @@ void Receiver::SetGeometry(std::shared_ptr<geometry::Geometry3D> geom,
                            const std::string& path,
                            int time,
                            const std::string& layer) {
+    auto ovis = dynamic_cast<visualizer::O3DVisualizer *> (window_);
+    if (ovis) {
+        gui::Application::GetInstance().PostToMainThread(
+                window_, [ovis, geom, path, time, layer]() {
+                  (void)layer;  // unused at the moment
+                  ovis->AddGeometry("rpc-"+path, geom, nullptr, "rpc", double(time));
+                });
+        return;
+    }
     std::shared_ptr<rendering::Open3DScene> scene = scene_;
     gui::Application::GetInstance().PostToMainThread(
             window_, [geom, path, time, layer, scene]() {

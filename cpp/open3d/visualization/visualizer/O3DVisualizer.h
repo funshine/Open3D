@@ -126,6 +126,8 @@ public:
 
     void RemoveGeometry(const std::string& name);
 
+    void ClearGeometry(const std::string& group = "");
+
     void ShowGeometry(const std::string& name, bool show);
 
     DrawObject GetGeometry(const std::string& name) const;

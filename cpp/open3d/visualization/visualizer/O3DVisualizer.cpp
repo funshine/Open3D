@@ -534,6 +534,26 @@ struct O3DVisualizer::Impl {
         h->AddChild(GiveOwnership(reset));
         h->AddStretch();
         settings.view_panel->AddChild(GiveOwnership(h));
+        settings.view_panel->AddFixed(half_em);
+
+        auto *clear_all = new SmallButton("Clear All Geometry");
+        clear_all->SetOnClicked([this]() { this->ClearGeometry(""); });
+
+        h = new Horiz(v_spacing);
+        h->AddStretch();
+        h->AddChild(GiveOwnership(clear_all));
+        h->AddStretch();
+        settings.view_panel->AddChild(GiveOwnership(h));
+        settings.view_panel->AddFixed(half_em);
+
+        auto *clear_rpc = new SmallButton("Clear RPC Geometry");
+        clear_rpc->SetOnClicked([this]() { this->ClearGeometry("rpc"); });
+
+        h = new Horiz(v_spacing);
+        h->AddStretch();
+        h->AddChild(GiveOwnership(clear_rpc));
+        h->AddStretch();
+        settings.view_panel->AddChild(GiveOwnership(h));
 
         // Selection sets controls
         settings.new_selection_set = new SmallButton(" + ");
@@ -1143,6 +1163,18 @@ struct O3DVisualizer::Impl {
         SetPointSize(ui_state_.point_size);
 
         scene_->ForceRedraw();
+    }
+
+    void ClearGeometry(const std::string& group/* = ""*/) {
+        for (auto &o : objects_) {
+            if (group == "" || o.group == group) {
+                // Post to main thread,
+                // ensure that every time a object is removed, gui updated.
+                gui::Application::GetInstance().PostToMainThread(window_, [this, o]() {
+                    this->RemoveGeometry(o.name);
+                });
+            }
+        }
     }
 
     void ShowGeometry(const std::string &name, bool show) {
@@ -2034,6 +2066,10 @@ void O3DVisualizer::LoadGeometry(const std::string &path) {
 
 void O3DVisualizer::RemoveGeometry(const std::string &name) {
     return impl_->RemoveGeometry(name);
+}
+
+void O3DVisualizer::ClearGeometry(const std::string &group) {
+    return impl_->ClearGeometry(group);
 }
 
 void O3DVisualizer::ShowGeometry(const std::string &name, bool show) {

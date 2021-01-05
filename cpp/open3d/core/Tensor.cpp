@@ -36,6 +36,7 @@
 #include "open3d/core/ShapeUtil.h"
 #include "open3d/core/SizeVector.h"
 #include "open3d/core/TensorKey.h"
+#include "open3d/core/kernel/Arange.h"
 #include "open3d/core/kernel/Kernel.h"
 #include "open3d/core/linalg/Inverse.h"
 #include "open3d/core/linalg/LeastSquares.h"
@@ -209,15 +210,20 @@ Tensor Tensor::Diag(const Tensor& input) {
     return diag;
 }
 
+Tensor Tensor::Arange(const Tensor& start,
+                      const Tensor& stop,
+                      const Tensor& step) {
+    return kernel::Arange(start, stop, step);
+}
+
 Tensor Tensor::GetItem(const TensorKey& tk) const {
     if (tk.GetMode() == TensorKey::TensorKeyMode::Index) {
         return IndexExtract(0, tk.GetIndex());
     } else if (tk.GetMode() == TensorKey::TensorKeyMode::Slice) {
-        TensorKey tk_new = tk.UpdateWithDimSize(shape_[0]);
+        TensorKey tk_new = tk.InstantiateDimSize(shape_[0]);
         return Slice(0, tk_new.GetStart(), tk_new.GetStop(), tk_new.GetStep());
     } else if (tk.GetMode() == TensorKey::TensorKeyMode::IndexTensor) {
-        Tensor index_tensor(*tk.GetIndexTensor());
-        return IndexGet({index_tensor});
+        return IndexGet({tk.GetIndexTensor()});
     } else {
         utility::LogError("Internal error: wrong TensorKeyMode.");
     }
@@ -271,7 +277,7 @@ Tensor Tensor::GetItem(const std::vector<TensorKey>& tks) const {
                 index_tensors.push_back(Tensor(std::vector<int64_t>{},
                                                Dtype::Int64, GetDevice()));
             } else if (tk.GetMode() == TensorKey::TensorKeyMode::IndexTensor) {
-                index_tensors.push_back(Tensor(*tk.GetIndexTensor()));
+                index_tensors.push_back(tk.GetIndexTensor());
             } else {
                 utility::LogError("Internal error: wrong TensorKeyMode.");
             }
@@ -287,7 +293,7 @@ Tensor Tensor::GetItem(const std::vector<TensorKey>& tks) const {
         if (tk.GetMode() == TensorKey::TensorKeyMode::Index) {
             t = t.IndexExtract(slice_dim, tk.GetIndex());
         } else if (tk.GetMode() == TensorKey::TensorKeyMode::Slice) {
-            TensorKey tk_new = tk.UpdateWithDimSize(t.shape_[slice_dim]);
+            TensorKey tk_new = tk.InstantiateDimSize(t.shape_[slice_dim]);
             t = t.Slice(slice_dim, tk_new.GetStart(), tk_new.GetStop(),
                         tk_new.GetStep());
             slice_dim++;
@@ -305,8 +311,7 @@ Tensor Tensor::SetItem(const Tensor& value) {
 
 Tensor Tensor::SetItem(const TensorKey& tk, const Tensor& value) {
     if (tk.GetMode() == TensorKey::TensorKeyMode::IndexTensor) {
-        Tensor index_tensor(*tk.GetIndexTensor());
-        IndexSet({index_tensor}, value);
+        IndexSet({tk.GetIndexTensor()}, value);
     } else {
         this->GetItem(tk) = value;
     }
@@ -343,7 +348,7 @@ Tensor Tensor::SetItem(const std::vector<TensorKey>& tks, const Tensor& value) {
                 index_tensors.push_back(Tensor(std::vector<int64_t>{},
                                                Dtype::Int64, GetDevice()));
             } else if (tk.GetMode() == TensorKey::TensorKeyMode::IndexTensor) {
-                index_tensors.push_back(Tensor(*tk.GetIndexTensor()));
+                index_tensors.push_back(tk.GetIndexTensor());
             } else {
                 utility::LogError("Internal error: wrong TensorKeyMode.");
             }
@@ -952,6 +957,30 @@ Tensor Tensor::Abs_() {
     return *this;
 }
 
+Tensor Tensor::Floor() const {
+    Tensor dst_tensor(shape_, dtype_, GetDevice());
+    kernel::UnaryEW(*this, dst_tensor, kernel::UnaryEWOpCode::Floor);
+    return dst_tensor;
+}
+
+Tensor Tensor::Ceil() const {
+    Tensor dst_tensor(shape_, dtype_, GetDevice());
+    kernel::UnaryEW(*this, dst_tensor, kernel::UnaryEWOpCode::Ceil);
+    return dst_tensor;
+}
+
+Tensor Tensor::Round() const {
+    Tensor dst_tensor(shape_, dtype_, GetDevice());
+    kernel::UnaryEW(*this, dst_tensor, kernel::UnaryEWOpCode::Round);
+    return dst_tensor;
+}
+
+Tensor Tensor::Trunc() const {
+    Tensor dst_tensor(shape_, dtype_, GetDevice());
+    kernel::UnaryEW(*this, dst_tensor, kernel::UnaryEWOpCode::Trunc);
+    return dst_tensor;
+}
+
 Device Tensor::GetDevice() const {
     if (blob_ == nullptr) {
         utility::LogError("Blob is null, cannot get device");
@@ -1246,29 +1275,54 @@ bool Tensor::IsSame(const Tensor& other) const {
            dtype_ == other.dtype_;
 }
 
-void Tensor::AssertShape(const SizeVector& expected_shape) const {
+void Tensor::AssertShape(const SizeVector& expected_shape,
+                         const std::string& error_msg) const {
     if (shape_ != expected_shape) {
-        utility::LogError("Tensor shape {} does not match expected shape: {}",
-                          shape_, expected_shape);
+        if (error_msg.empty()) {
+            utility::LogError(
+                    "Tensor has shape {}, but it is expected to be {}.", shape_,
+                    expected_shape);
+        } else {
+            utility::LogError(
+                    "Tensor has shape {}, but it is expected to be {}: {}",
+                    shape_, expected_shape, error_msg);
+        }
     }
 }
 
-void Tensor::AssertShapeCompatible(
-        const DynamicSizeVector& expected_shape) const {
-    GetShape().AssertCompatible(expected_shape);
+void Tensor::AssertShapeCompatible(const DynamicSizeVector& expected_shape,
+                                   const std::string& error_msg) const {
+    GetShape().AssertCompatible(expected_shape, error_msg);
 }
 
-void Tensor::AssertDevice(const Device& expected_device) const {
+void Tensor::AssertDevice(const Device& expected_device,
+                          const std::string& error_msg) const {
     if (GetDevice() != expected_device) {
-        utility::LogError("Tensor has device {}, but is expected to be {}.",
-                          GetDevice().ToString(), expected_device.ToString());
+        if (error_msg.empty()) {
+            utility::LogError("Tensor has device {}, but is expected to be {}",
+                              GetDevice().ToString(),
+                              expected_device.ToString());
+        } else {
+            utility::LogError(
+                    "Tensor has device {}, but is expected to be {}: {}",
+                    GetDevice().ToString(), expected_device.ToString(),
+                    error_msg);
+        }
     }
 }
 
-void Tensor::AssertDtype(const Dtype& expected_dtype) const {
+void Tensor::AssertDtype(const Dtype& expected_dtype,
+                         const std::string& error_msg) const {
     if (GetDtype() != expected_dtype) {
-        utility::LogError("Tensor has dtype {}, but is expected to be {}.",
-                          GetDtype().ToString(), expected_dtype.ToString());
+        if (error_msg.empty()) {
+            utility::LogError("Tensor has dtype {}, but is expected to be {}.",
+                              GetDtype().ToString(), expected_dtype.ToString());
+        } else {
+            utility::LogError(
+                    "Tensor has dtype {}, but is expected to be {}: {}",
+                    GetDtype().ToString(), expected_dtype.ToString(),
+                    error_msg);
+        }
     }
 }
 

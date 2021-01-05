@@ -24,42 +24,32 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#pragma once
-
-#include <Eigen/Core>
-#include <tuple>
-#include <vector>
-
-/// @cond
-namespace Eigen {
-
-typedef Eigen::Matrix<double, 14, 14> Matrix14d;
-typedef Eigen::Matrix<double, 14, 1> Vector14d;
-typedef Eigen::Matrix<int, 14, 1> Vector14i;
-
-}  // namespace Eigen
-/// @endcond
+#include "open3d/core/Dispatch.h"
+#include "open3d/core/Tensor.h"
+#include "open3d/core/kernel/Arange.h"
+#include "open3d/core/kernel/CPULauncher.h"
 
 namespace open3d {
-namespace pipelines {
-namespace color_map {
+namespace core {
+namespace kernel {
 
-/// Function to compute JTJ and Jtr
-/// Input: function pointer f and total number of rows of Jacobian matrix
-/// Output: JTJ, JTr, sum of r^2
-/// Note: this function is almost identical to the functions in
-/// Utility/Eigen.h/cpp, but this function takes additional multiplication
-/// pattern that can produce JTJ having hundreds of rows and columns.
-template <typename VecInTypeDouble,
-          typename VecInTypeInt,
-          typename MatOutType,
-          typename VecOutType>
-std::tuple<MatOutType, VecOutType, double> ComputeJTJandJTrNonRigid(
-        std::function<void(int, VecInTypeDouble &, double &, VecInTypeInt &)> f,
-        int iteration_num,
-        int nonrigidval,
-        bool verbose = true);
+void ArangeCPU(const Tensor& start,
+               const Tensor& stop,
+               const Tensor& step,
+               Tensor& dst) {
+    Dtype dtype = start.GetDtype();
+    DISPATCH_DTYPE_TO_TEMPLATE(dtype, [&]() {
+        scalar_t sstart = start.Item<scalar_t>();
+        scalar_t sstep = step.Item<scalar_t>();
+        scalar_t* dst_ptr = static_cast<scalar_t*>(dst.GetDataPtr());
+        int64_t n = dst.GetLength();
+        CPULauncher::LaunchGeneralKernel(n, [&](int64_t workload_idx) {
+            dst_ptr[workload_idx] =
+                    sstart + static_cast<scalar_t>(sstep * workload_idx);
+        });
+    });
+}
 
-}  // namespace color_map
-}  // namespace pipelines
+}  // namespace kernel
+}  // namespace core
 }  // namespace open3d

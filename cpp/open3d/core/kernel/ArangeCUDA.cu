@@ -24,37 +24,33 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "tests/UnitTest.h"
-
-// #include "open3d/pipelines/color_map/ColorMapOptimizationOption.h"
+#include "open3d/core/Dispatch.h"
+#include "open3d/core/Tensor.h"
+#include "open3d/core/kernel/Arange.h"
+#include "open3d/core/kernel/CUDALauncher.cuh"
 
 namespace open3d {
-namespace tests {
+namespace core {
+namespace kernel {
 
-/* TODO
-As the pipelines::color_map::ColorMapOptimization subcomponents go back into
-hiding several lines of code had to commented out. Do not remove these lines,
-they may become useful again after a decision has been made about the way to
-make these subcomponents visible to UnitTest.
-*/
-
-TEST(ColorMapOptimizationOption, DISABLED_Constructor) {
-    // open3d::ColorMapOptimizationOption option;
-
-    // EXPECT_FALSE(option.non_rigid_camera_coordinate_);
-
-    // EXPECT_EQ(16, option.number_of_vertical_anchors_);
-    // EXPECT_EQ(3, option.half_dilation_kernel_size_for_discontinuity_map_);
-
-    // EXPECT_NEAR(0.316, option.non_rigid_anchor_point_weight_,
-    // tests::THRESHOLD_1E_6); EXPECT_NEAR(300, option.maximum_iteration_,
-    // tests::THRESHOLD_1E_6); EXPECT_NEAR(2.5,
-    // option.maximum_allowable_depth_, tests::THRESHOLD_1E_6);
-    // EXPECT_NEAR(0.03, option.depth_threshold_for_visibility_check_,
-    // tests::THRESHOLD_1E_6); EXPECT_NEAR(0.1,
-    // option.depth_threshold_for_discontinuity_check_,
-    // tests::THRESHOLD_1E_6);
+void ArangeCUDA(const Tensor& start,
+                const Tensor& stop,
+                const Tensor& step,
+                Tensor& dst) {
+    Dtype dtype = start.GetDtype();
+    DISPATCH_DTYPE_TO_TEMPLATE(dtype, [&]() {
+        scalar_t sstart = start.Item<scalar_t>();
+        scalar_t sstep = step.Item<scalar_t>();
+        scalar_t* dst_ptr = static_cast<scalar_t*>(dst.GetDataPtr());
+        int64_t n = dst.GetLength();
+        CUDALauncher::LaunchGeneralKernel(n, [=] OPEN3D_HOST_DEVICE(
+                                                     int64_t workload_idx) {
+            dst_ptr[workload_idx] =
+                    sstart + static_cast<scalar_t>(sstep * workload_idx);
+        });
+    });
 }
 
-}  // namespace tests
+}  // namespace kernel
+}  // namespace core
 }  // namespace open3d

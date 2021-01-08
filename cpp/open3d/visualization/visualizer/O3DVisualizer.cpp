@@ -29,6 +29,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <json/json.h>
 
 #include "open3d/Open3DConfig.h"
 #include "open3d/geometry/Image.h"
@@ -70,11 +71,16 @@
 #include "open3d/visualization/visualizer/O3DVisualizerSelections.h"
 #include "open3d/visualization/visualizer/Receiver.h"
 
+#include "open3d/t/io/sensor/realsense/RSBagReader.h"
+#include "open3d/t/io/sensor/realsense/RealSenseSensor.h"
+
 #define GROUPS_USE_TREE 1
 
 using namespace open3d::visualization::gui;
 using namespace open3d::visualization::rendering;
 using namespace open3d::io::rpc;
+
+namespace tio = open3d::t::io;
 
 namespace open3d {
 namespace visualization {
@@ -343,6 +349,12 @@ struct O3DVisualizer::Impl {
     std::shared_ptr<Receiver> receiver_;
     std::shared_ptr<Connection> connection_;
 
+#ifdef BUILD_LIBREALSENSE
+    tio::RealSenseSensorConfig rs_cfg_;
+    tio::RealSenseSensor rs_;
+    bool flag_captrue_;
+#endif
+
     UIState ui_state_;
     bool can_auto_show_settings_ = true;
 
@@ -482,10 +494,29 @@ struct O3DVisualizer::Impl {
         progressbar_ = new LabeledProgressBar("Progress...");
         w->AddChild(GiveOwnership(progressbar_));
 
+        MakeDefaultRsConfig();
         MakeSettingsUI();
         SetMouseMode(SceneWidget::Controls::ROTATE_CAMERA);
         SetLightingProfile(gLightingProfiles[2]);  // med shadows
         SetPointSize(ui_state_.point_size);  // sync selections_' point size
+    }
+
+    void MakeDefaultRsConfig() {
+#ifdef BUILD_LIBREALSENSE
+        Json::Value cfg;
+        cfg["serial"] = "";
+        cfg["color_format"] = "RS2_FORMAT_RGB8";
+        cfg["color_resolution"] = "0,720";
+        cfg["depth_format"] = "RS2_FORMAT_Z16";
+        cfg["depth_resolution"] = "0,768";
+        cfg["fps"] = "30";
+        cfg["visual_preset"] = "RS2_L500_VISUAL_PRESET_MAX_RANGE";
+
+        rs_cfg_.ConvertFromJsonValue(cfg);
+#else
+        utility::LogWarning(
+                "MakeDefaultRsConfig: Realsense not built");
+#endif
     }
 
     void MakeSettingsUI() {
@@ -615,24 +646,29 @@ struct O3DVisualizer::Impl {
         settings.panel->AddChild(GiveOwnership(settings.device_panel));
 
         settings.refresh_device_list = new SmallButton("Refresh");
-        settings.refresh_device_list->SetOnClicked(
-                []() { utility::LogInfo("Refresh device lists"); });
+        settings.refresh_device_list->SetOnClicked( [this]() {
+            this->RefreshDevices();
+        });
 
         settings.device_list = new ListView();
-        std::vector<std::string> items;
-        items.push_back("Test device1");
-        items.push_back("Test device2");
-        settings.device_list->SetItems(items);
         settings.device_list->SetOnValueChanged([this](const char *, bool) {
-          utility::LogInfo("Device {} selected", settings.device_list->GetSelectedIndex());
+            auto sensor_index = settings.device_list->GetSelectedIndex();
+            utility::LogInfo("Device {} selected", sensor_index);
+#ifdef BUILD_LIBREALSENSE
+          rs_.InitSensor(rs_cfg_, sensor_index);
+//            utility::LogInfo("{}", rs_.GetMetadata().ToString());
+#endif
         });
 
         settings.start_capture = new SmallButton("Start Capture");
-        settings.start_capture->SetOnClicked(
-                []() { utility::LogInfo("Start Capture"); });
+        settings.start_capture->SetOnClicked([this]() {
+            this->StartCapture();
+        });
+
         settings.stop_capture = new SmallButton("Stop Capture");
-        settings.stop_capture->SetOnClicked(
-                []() { utility::LogInfo("Stop Capture"); });
+        settings.stop_capture->SetOnClicked([this]() {
+            this->StopCapture();
+        });
 
         h = new Horiz(v_spacing);
         h->AddChild(std::make_shared<Label>("Device Lists"));
@@ -1825,6 +1861,61 @@ struct O3DVisualizer::Impl {
             pickable.emplace_back(o.name, o.geometry.get(), o.tgeometry.get());
         }
         selections_->SetSelectableGeometry(pickable);
+    }
+
+    void RefreshDevices() {
+#ifdef BUILD_LIBREALSENSE
+        std::vector<std::string> devices;
+        auto all_device_info = rs_.EnumerateDevices();
+        if (all_device_info.empty()) {
+            utility::LogWarning("No RealSense devices detected.");
+        } else {
+            for (auto& dev_info : all_device_info) {
+                devices.push_back(dev_info.name + " : " + dev_info.serial);
+            }
+        }
+        settings.device_list->SetItems(devices);
+#else
+        utility::LogWarning(
+                "RefreshDevices: Realsense not built");
+#endif
+    }
+
+    void StartCapture() {
+#ifdef BUILD_LIBREALSENSE
+        utility::LogInfo("Start Capture");
+        bool flag_record = false;
+        bool align_streams = true;
+        rs_.StartCapture(flag_record);
+        flag_captrue_ = true;
+        gui::Application::GetInstance().RunInThread([this, align_streams]() {
+          Eigen::Vector4f bg_color = {0.0, 0.0, 0.0, 0.0};
+          while (flag_captrue_) {
+              auto im_rgbd = rs_.CaptureFrame(true, align_streams).ToLegacyRGBDImage();
+              gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, bg_color]() {
+                aux_depth_scene_->GetScene()->SetBackground(bg_color);
+                aux_color_scene_->GetScene()->SetBackground(bg_color);
+                utility::LogInfo("Depth: {} X {}", im_rgbd.depth_.width_, im_rgbd.depth_.height_);
+                utility::LogInfo("Color: {} X {}", im_rgbd.color_.width_, im_rgbd.color_.height_);
+              });
+          }
+        });
+#else
+        utility::LogWarning(
+                "StartCapture: Realsense not built");
+#endif
+    }
+
+    void StopCapture() {
+#ifdef BUILD_LIBREALSENSE
+        flag_captrue_ = false;
+        utility::LogInfo("Stop Capture");
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        rs_.StopCapture();
+#else
+        utility::LogWarning(
+                "StopCapture: Realsense not built");
+#endif
     }
 
     bool OnAnimationTick() {

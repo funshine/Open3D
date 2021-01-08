@@ -385,6 +385,12 @@ struct O3DVisualizer::Impl {
         Button *delete_selection_set;
         ListView *selection_sets;
 
+        CollapsableVert* device_panel;
+        ListView *device_list;
+        Button *refresh_device_list;
+        Button *start_capture;
+        Button *stop_capture;
+
 #ifdef BUILD_RPC_INTERFACE
         CollapsableVert* rpc_panel;
         TextEdit* rpc_conn_addr;
@@ -603,10 +609,51 @@ struct O3DVisualizer::Impl {
         settings.pick_panel->AddChild(GiveOwnership(h));
         settings.pick_panel->AddChild(GiveOwnership(settings.selection_sets));
 
+        // Device controls and settings
+        settings.device_panel =
+                new CollapsableVert("Devices", v_spacing, margins);
+        settings.panel->AddChild(GiveOwnership(settings.device_panel));
+
+        settings.refresh_device_list = new SmallButton("Refresh");
+        settings.refresh_device_list->SetOnClicked(
+                []() { utility::LogInfo("Refresh device lists"); });
+
+        settings.device_list = new ListView();
+        std::vector<std::string> items;
+        items.push_back("Test device1");
+        items.push_back("Test device2");
+        settings.device_list->SetItems(items);
+        settings.device_list->SetOnValueChanged([this](const char *, bool) {
+          utility::LogInfo("Device {} selected", settings.device_list->GetSelectedIndex());
+        });
+
+        settings.start_capture = new SmallButton("Start Capture");
+        settings.start_capture->SetOnClicked(
+                []() { utility::LogInfo("Start Capture"); });
+        settings.stop_capture = new SmallButton("Stop Capture");
+        settings.stop_capture->SetOnClicked(
+                []() { utility::LogInfo("Stop Capture"); });
+
+        h = new Horiz(v_spacing);
+        h->AddChild(std::make_shared<Label>("Device Lists"));
+        h->AddStretch();
+        h->AddChild(GiveOwnership(settings.refresh_device_list));
+        settings.device_panel->AddChild(GiveOwnership(h));
+
+        settings.device_panel->AddChild(GiveOwnership(settings.device_list));
+
+        h = new Horiz(v_spacing);
+        h->AddChild(GiveOwnership(settings.start_capture));
+        h->AddStretch();
+        h->AddChild(GiveOwnership(settings.stop_capture));
+        settings.device_panel->AddChild(GiveOwnership(h));
+
+        settings.device_panel->AddFixed(half_em);
+
 #ifdef BUILD_RPC_INTERFACE
         // RPC controls
         settings.rpc_panel =
-                new CollapsableVert("RPC", 0, margins);
+                new CollapsableVert("RPC", v_spacing, margins);
         settings.panel->AddChild(GiveOwnership(settings.rpc_panel));
 
         auto* vgrid = new VGrid(2, v_spacing);
@@ -624,7 +671,6 @@ struct O3DVisualizer::Impl {
         vgrid->AddChild(GiveOwnership(settings.set_conn_addr));
         settings.rpc_panel->AddChild(std::make_shared<Label>("Send Addr"));
         settings.rpc_panel->AddChild(GiveOwnership(vgrid));
-        settings.rpc_panel->AddFixed(half_em);
 
         vgrid = new VGrid(2, v_spacing);
         settings.rpc_bind_addr = new TextEdit();
@@ -648,7 +694,6 @@ struct O3DVisualizer::Impl {
         vgrid->AddChild(GiveOwnership(settings.start_rpc_bind));
         settings.rpc_panel->AddChild(std::make_shared<Label>("Recv Addr"));
         settings.rpc_panel->AddChild(GiveOwnership(vgrid));
-        settings.rpc_panel->AddFixed(half_em);
 
         settings.load_and_display = new Checkbox("Load and Display");
         settings.load_and_display->SetChecked(true);
@@ -662,7 +707,6 @@ struct O3DVisualizer::Impl {
             }
         });
         settings.rpc_panel->AddChild(GiveOwnership(settings.load_and_display));
-        settings.rpc_panel->AddFixed(half_em);
         settings.rpc_panel->AddChild(GiveOwnership(settings.load_and_send));
         settings.rpc_panel->AddFixed(half_em);
 #endif

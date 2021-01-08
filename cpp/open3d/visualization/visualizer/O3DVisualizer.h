@@ -76,6 +76,7 @@ public:
         bool show_progressbar = false;
         bool show_skybox = false;
         bool show_axes = false;
+        bool show_aux_scenes = false;
         bool is_animating = false;
         std::set<std::string> enabled_groups;
 

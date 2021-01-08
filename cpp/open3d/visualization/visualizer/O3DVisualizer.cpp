@@ -355,6 +355,9 @@ struct O3DVisualizer::Impl {
     Window *window_ = nullptr;
     SceneWidget *scene_ = nullptr;
 
+    SceneWidget *aux_color_scene_ = nullptr;
+    SceneWidget *aux_depth_scene_ = nullptr;
+
     int app_menu_custom_items_index_ = -1;
     // We only keep pointers here because that way we don't have to release
     // all the shared_ptrs at destruction just to ensure that the gui gets
@@ -395,6 +398,7 @@ struct O3DVisualizer::Impl {
         CollapsableVert *scene_panel;
         Checkbox *show_skybox;
         Checkbox *show_axes;
+        Checkbox *show_aux_scenes;
         ColorEdit *bg_color;
         Slider *point_size;
         Combobox *shader;
@@ -456,6 +460,18 @@ struct O3DVisualizer::Impl {
 
         auto o3dscene = scene_->GetScene();
         o3dscene->SetBackground(ui_state_.bg_color);
+
+        aux_color_scene_ = new SceneWidget();
+        aux_color_scene_->SetScene(std::make_shared<Open3DScene>(w->GetRenderer()));
+        aux_color_scene_->EnableSceneCaching(true);  // smoother UI with large geometry
+        w->AddChild(GiveOwnership(aux_color_scene_));
+        aux_color_scene_->GetScene()->SetBackground(ui_state_.bg_color);
+
+        aux_depth_scene_ = new SceneWidget();
+        aux_depth_scene_->SetScene(std::make_shared<Open3DScene>(w->GetRenderer()));
+        aux_depth_scene_->EnableSceneCaching(true);  // smoother UI with large geometry
+        w->AddChild(GiveOwnership(aux_depth_scene_));
+        aux_depth_scene_->GetScene()->SetBackground(ui_state_.bg_color);
 
         progressbar_ = new LabeledProgressBar("Progress...");
         w->AddChild(GiveOwnership(progressbar_));
@@ -667,6 +683,14 @@ struct O3DVisualizer::Impl {
         h->AddChild(GiveOwnership(settings.show_axes));
         h->AddFixed(em);
         h->AddChild(GiveOwnership(settings.show_skybox));
+        settings.scene_panel->AddChild(GiveOwnership(h));
+
+        settings.show_aux_scenes = new Checkbox("Show Aux Scenes");
+        settings.show_aux_scenes->SetOnChecked(
+                [this](bool is_checked) { this->ShowAuxScenes(is_checked); });
+        h = new Horiz(v_spacing);
+        h->AddChild(GiveOwnership(settings.show_aux_scenes));
+        h->AddFixed(em);
         settings.scene_panel->AddChild(GiveOwnership(h));
 
         settings.bg_color = new ColorEdit();
@@ -1284,6 +1308,12 @@ struct O3DVisualizer::Impl {
         scene_->ForceRedraw();
     }
 
+    void ShowAuxScenes(bool show) {
+        ui_state_.show_aux_scenes = show;
+        settings.show_aux_scenes->SetChecked(show);  // in case called manually
+        window_->SetNeedsLayout();
+    }
+
     void SetPointSize(int px) {
         ui_state_.point_size = px;
         settings.point_size->SetValue(double(px));
@@ -1528,6 +1558,7 @@ struct O3DVisualizer::Impl {
         SetBackground(ui_state_.bg_color, nullptr);
         ShowSkybox(ui_state_.show_skybox);
         ShowAxes(ui_state_.show_axes);
+        ShowAuxScenes(ui_state_.show_aux_scenes);
 
         if (point_size_changed) {
             SetPointSize(ui_state_.point_size);
@@ -2192,12 +2223,27 @@ void O3DVisualizer::Layout(const Theme &theme) {
     impl_->settings.actions->SetWidth(settings_width -
                                       int(std::round(1.5 * em)));
     if (impl_->settings.panel->IsVisible()) {
+        auto w = f.width - settings_width;
+        auto hdiv = 1.0;
+        if (impl_->settings.show_aux_scenes->IsChecked()) {
+            hdiv = 0.7;
+            impl_->aux_color_scene_->SetFrame(
+                    Rect(f.x, f.y+f.height*hdiv, w*0.5, f.height*(1.0-hdiv)));
+            impl_->aux_depth_scene_->SetFrame(
+                    Rect(f.x+w*0.5, f.y+f.height*hdiv, w*0.5, f.height*(1.0-hdiv)));
+        }
         impl_->scene_->SetFrame(
-                Rect(f.x, f.y, f.width - settings_width, f.height));
+                Rect(f.x, f.y, w, f.height*hdiv));
         impl_->settings.panel->SetFrame(Rect(f.GetRight() - settings_width, f.y,
                                              settings_width, f.height));
     } else {
-        impl_->scene_->SetFrame(f);
+        auto hdiv = 1.0;
+        if (impl_->settings.show_aux_scenes->IsChecked()) {
+            hdiv = 0.5;
+            impl_->aux_color_scene_->SetFrame(Rect(f.x, f.y+f.height*hdiv, f.width*0.5, f.height*(1.0-hdiv)));
+            impl_->aux_depth_scene_->SetFrame(Rect(f.x+f.width*0.5, f.y+f.height*hdiv, f.width*0.5, f.height*(1.0-hdiv)));
+        }
+        impl_->scene_->SetFrame(Rect(f.x, f.y, f.width, f.height*hdiv));
     }
 
     if(impl_->progressbar_->IsVisible()) {

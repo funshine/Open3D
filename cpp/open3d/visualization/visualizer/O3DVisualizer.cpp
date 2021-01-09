@@ -499,6 +499,7 @@ struct O3DVisualizer::Impl {
         SetMouseMode(SceneWidget::Controls::ROTATE_CAMERA);
         SetLightingProfile(gLightingProfiles[2]);  // med shadows
         SetPointSize(ui_state_.point_size);  // sync selections_' point size
+        RefreshDevices();
     }
 
     void MakeDefaultRsConfig() {
@@ -1889,18 +1890,20 @@ struct O3DVisualizer::Impl {
         rs_.StartCapture(flag_record);
         flag_captrue_ = true;
         gui::Application::GetInstance().RunInThread([this, align_streams]() {
-          Eigen::Vector4f bg_color = {0.0, 0.0, 0.0, 0.0};
-          while (flag_captrue_) {
-              auto im_rgbd = rs_.CaptureFrame(true, align_streams).ToLegacyRGBDImage();
-              gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, bg_color]() {
-                aux_depth_scene_->GetScene()->SetBackground(bg_color);
-                aux_color_scene_->GetScene()->SetBackground(bg_color);
-                aux_depth_scene_->ForceRedraw();
-                aux_color_scene_->ForceRedraw();
-                utility::LogInfo("Depth: {} X {}", im_rgbd.depth_.width_, im_rgbd.depth_.height_);
-                utility::LogInfo("Color: {} X {}", im_rgbd.color_.width_, im_rgbd.color_.height_);
-              });
-          }
+            auto depth_scale = rs_.GetMetadata().depth_scale_;
+            while (flag_captrue_) {
+                auto im_rgbd = rs_.CaptureFrame(true, align_streams).ToLegacyRGBDImage();
+                gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, depth_scale]() {
+                    auto depth_image_ptr = std::make_shared<geometry::Image>(im_rgbd.depth_);
+                    auto color_image_ptr = std::make_shared<geometry::Image>(im_rgbd.color_);
+                    aux_color_scene_->GetScene()->SetBackground(ui_state_.bg_color, color_image_ptr);
+                    aux_color_scene_->ForceRedraw();
+                    aux_depth_scene_->GetScene()->SetBackground(
+                            ui_state_.bg_color,
+                            depth_image_ptr->ConvertDepthToFloatImage(depth_scale)->CreateImageFromFloatImage<uint8_t>());
+                    aux_depth_scene_->ForceRedraw();
+                });
+            }
         });
 #else
         utility::LogWarning(

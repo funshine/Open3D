@@ -36,6 +36,7 @@
 #include "open3d/core/DLPack.h"
 #include "open3d/core/Device.h"
 #include "open3d/core/Dtype.h"
+#include "open3d/core/Scalar.h"
 #include "open3d/core/ShapeUtil.h"
 #include "open3d/core/SizeVector.h"
 #include "open3d/core/TensorKey.h"
@@ -54,7 +55,7 @@ public:
            Dtype dtype,
            const Device& device = Device("CPU:0"))
         : shape_(shape),
-          strides_(DefaultStrides(shape)),
+          strides_(shape_util::DefaultStrides(shape)),
           dtype_(dtype),
           blob_(std::make_shared<Blob>(shape.NumElements() * dtype.ByteSize(),
                                        device)) {
@@ -181,18 +182,18 @@ public:
 
     /// \brief Fill the whole Tensor with a scalar value, the scalar will be
     /// casted to the Tensor's dtype.
-    template <typename Scalar>
-    void Fill(Scalar v);
+    template <typename S>
+    void Fill(S v);
 
     template <typename Object>
     void FillObject(const Object& v);
 
-    /// Create a tensor with uninitilized values.
+    /// Create a tensor with uninitialized values.
     static Tensor Empty(const SizeVector& shape,
                         Dtype dtype,
                         const Device& device = Device("CPU:0"));
 
-    /// Create a tensor with uninitilized values with the same dtype and device
+    /// Create a tensor with uninitialized values with the same dtype and device
     /// as the other tensor.
     static Tensor EmptyLike(const Tensor& other) {
         return Tensor::Empty(other.shape_, other.dtype_, other.GetDevice());
@@ -230,7 +231,7 @@ public:
         return Tensor(ele_list, shape, type, device);
     };
 
-    /// Create a 1-D tensor with initilizer list.
+    /// Create a 1-D tensor with initializer list.
     /// For example,
     /// core::Tensor::Init<float>({1,2,3});
     template <typename T>
@@ -244,7 +245,7 @@ public:
         return Tensor(ele_list, shape, type, device);
     };
 
-    /// Create a 2-D tensor with nested initilizer list.
+    /// Create a 2-D tensor with nested initializer list.
     /// For example,
     /// core::Tensor::Init<float>({{1,2,3},{4,5,6}});
     template <typename T>
@@ -272,7 +273,7 @@ public:
         return Tensor(ele_list, shape, type, device);
     };
 
-    /// Create a 3-D tensor with nested initilizer list.
+    /// Create a 3-D tensor with nested initializer list.
     /// For example,
     /// core::Tensor::Init<float>({{{1,2,3},{4,5,6}},{{7,8,9},{10,11,12}}});
     template <typename T>
@@ -333,28 +334,11 @@ public:
     static Tensor Diag(const Tensor& input);
 
     /// Create a 1D tensor with evenly spaced values in the given interval.
-    static Tensor Arange(const Tensor& start,
-                         const Tensor& stop,
-                         const Tensor& step);
-
-    template <typename T>
-    static Tensor Arange(T start,
-                         T stop,
-                         T step = 1,
-                         const Device& device = core::Device("CPU:0")) {
-        Dtype dtype = Dtype::FromType<T>();
-        if (step == 0) {
-            utility::LogError("Step cannot be 0");
-        }
-        if (stop == start) {
-            return Tensor({0}, dtype, device);
-        }
-
-        Tensor tstart = Tensor::Full({}, start, dtype, device);
-        Tensor tstop = Tensor::Full({}, stop, dtype, device);
-        Tensor tstep = Tensor::Full({}, step, dtype, device);
-        return Arange(tstart, tstop, tstep);
-    }
+    static Tensor Arange(Scalar start,
+                         Scalar stop,
+                         Scalar step = 1,
+                         Dtype dtype = Dtype::Int64,
+                         const Device& device = core::Device("CPU:0"));
 
     /// Pythonic __getitem__ for tensor.
     ///
@@ -1054,7 +1038,7 @@ public:
     /// Returns True if the underlying memory buffer is contiguous. A contiguous
     /// Tensor's data_ptr_ does not need to point to the beginning of blob_.
     inline bool IsContiguous() const {
-        return DefaultStrides(shape_) == strides_;
+        return shape_util::DefaultStrides(shape_) == strides_;
     };
 
     /// Returns a contiguous Tensor containing the same data in the same device.
@@ -1129,28 +1113,17 @@ public:
         }
     }
 
-    static SizeVector DefaultStrides(const SizeVector& shape);
-
-    /// 1. Separate `oldshape` into chunks of dimensions, where the
-    /// dimensions
-    ///    are ``contiguous'' in each chunk, i.e.,
-    ///    oldstride[i] = oldshape[i+1] * oldstride[i+1]
-    /// 2. `newshape` must be able to be separated into same number of
-    /// chunks as
-    ///    `oldshape` was separated into, where each chunk of newshape has
-    ///    matching ``numel'', i.e., number of subspaces, as the
-    ///    corresponding chunk of `oldshape`.
-    /// Ref: aten/src/ATen/TensorUtils.cpp
-    static std::pair<bool, SizeVector> ComputeNewStrides(
-            const SizeVector& old_shape,
-            const SizeVector& old_strides,
-            const SizeVector& new_shape);
-
     /// Convert the Tensor to DLManagedTensor.
     DLManagedTensor* ToDLPack() const;
 
     /// Convert DLManagedTensor to Tensor.
     static Tensor FromDLPack(const DLManagedTensor* dlmt);
+
+    /// Save tensor to numpy's npy format.
+    void Save(const std::string& file_name) const;
+
+    /// Load tensor from numpy's npy format.
+    static Tensor Load(const std::string& file_name);
 
     /// Assert that the Tensor has the specified shape.
     void AssertShape(const SizeVector& expected_shape,
@@ -1264,8 +1237,8 @@ inline bool Tensor::Item() const {
     return static_cast<bool>(value);
 }
 
-template <typename Scalar>
-inline void Tensor::Fill(Scalar v) {
+template <typename S>
+inline void Tensor::Fill(S v) {
     DISPATCH_DTYPE_TO_TEMPLATE_WITH_BOOL(GetDtype(), [&]() {
         scalar_t casted_v = static_cast<scalar_t>(v);
         Tensor tmp(std::vector<scalar_t>({casted_v}), SizeVector({}),

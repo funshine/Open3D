@@ -9,8 +9,6 @@ set(KERNEL_SRC
     kernel/UnaryEWCPU.cpp
     kernel/BinaryEW.cpp
     kernel/BinaryEWCPU.cpp
-    kernel/GeneralEW.cpp
-    kernel/GeneralEWCPU.cpp
     kernel/Reduction.cpp
     kernel/ReductionCPU.cpp
     kernel/Kernel.cpp
@@ -22,7 +20,6 @@ set(KERNEL_CUDA_SRC
     kernel/NonZeroCUDA.cu
     kernel/UnaryEWCUDA.cu
     kernel/BinaryEWCUDA.cu
-    kernel/GeneralEWCUDA.cu
     kernel/ReductionCUDA.cu
 )
 
@@ -57,6 +54,7 @@ set(CORE_SRC
     Indexer.cpp
     MemoryManager.cpp
     MemoryManagerCPU.cpp
+    NumpyIO.cpp
     Tensor.cpp
     TensorKey.cpp
     TensorList.cpp

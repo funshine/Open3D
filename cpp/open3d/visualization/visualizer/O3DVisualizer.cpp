@@ -1895,6 +1895,8 @@ struct O3DVisualizer::Impl {
               gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, bg_color]() {
                 aux_depth_scene_->GetScene()->SetBackground(bg_color);
                 aux_color_scene_->GetScene()->SetBackground(bg_color);
+                aux_depth_scene_->ForceRedraw();
+                aux_color_scene_->ForceRedraw();
                 utility::LogInfo("Depth: {} X {}", im_rgbd.depth_.width_, im_rgbd.depth_.height_);
                 utility::LogInfo("Color: {} X {}", im_rgbd.color_.width_, im_rgbd.color_.height_);
               });

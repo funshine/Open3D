@@ -74,14 +74,14 @@ public:
         Shader scene_shader = Shader::STANDARD;
         bool show_settings = false;
         bool show_progressbar = false;
-        bool show_skybox = false;
+        bool show_skybox = true;
         bool show_axes = false;
         bool show_aux_scenes = true;
         bool is_animating = false;
         std::set<std::string> enabled_groups;
 
         Eigen::Vector4f bg_color = {1.0f, 1.0f, 1.0f, 1.0f};
-        int point_size = 3;
+        int point_size = 1;
         int line_width = 2;
 
         bool use_ibl = false;

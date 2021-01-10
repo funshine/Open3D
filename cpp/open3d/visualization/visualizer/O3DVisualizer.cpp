@@ -511,7 +511,7 @@ struct O3DVisualizer::Impl {
         cfg["depth_format"] = "RS2_FORMAT_Z16";
         cfg["depth_resolution"] = "0,768";
         cfg["fps"] = "30";
-        cfg["visual_preset"] = "RS2_L500_VISUAL_PRESET_MAX_RANGE";
+        cfg["visual_preset"] = "RS2_L500_VISUAL_PRESET_SHORT_RANGE";
 
         rs_cfg_.ConvertFromJsonValue(cfg);
 #else
@@ -1891,9 +1891,10 @@ struct O3DVisualizer::Impl {
         flag_captrue_ = true;
         gui::Application::GetInstance().RunInThread([this, align_streams]() {
             auto depth_scale = rs_.GetMetadata().depth_scale_;
+            auto intrinsic = rs_.GetMetadata().intrinsics_;
             while (flag_captrue_) {
                 auto im_rgbd = rs_.CaptureFrame(true, align_streams).ToLegacyRGBDImage();
-                gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, depth_scale]() {
+                gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, depth_scale, intrinsic]() {
                     auto color_image_ptr = std::make_shared<geometry::Image>(im_rgbd.color_);
                     // SetBackground() add background image as a geometry, this cause memory leak if we SetBackground again and again
                     // see FilamentScene::SetBackground() --> AddGeometry(kBackgroundName, quad, m); // kBackgroundName = "__background"
@@ -1906,10 +1907,36 @@ struct O3DVisualizer::Impl {
                     // as a quick and ugly fix, here we Remove the "__background" geometry before REPLACE the background.
                     auto depth_image_ptr = std::make_shared<geometry::Image>(im_rgbd.depth_);
                     aux_depth_scene_->GetScene()->GetScene()->RemoveGeometry("__background");
-                    aux_depth_scene_->GetScene()->SetBackground(
-                            ui_state_.bg_color,
-                            depth_image_ptr->ConvertDepthToFloatImage(depth_scale)->CreateImageFromFloatImage<uint8_t>());
+                    auto float_image = depth_image_ptr->ConvertDepthToFloatImage(depth_scale);
+                    aux_depth_scene_->GetScene()->SetBackground(ui_state_.bg_color, float_image->CreateImageFromFloatImage<uint8_t>());
                     aux_depth_scene_->ForceRedraw();
+
+                    auto rgbd = geometry::RGBDImage::CreateFromColorAndDepth(im_rgbd.color_, im_rgbd.depth_, depth_scale, 3.0, false);
+                    auto pcd = geometry::PointCloud::CreateFromRGBDImage(*rgbd, intrinsic);
+                    // Flip it, otherwise the pointcloud will be upside down
+                    pcd->Transform((Eigen::Matrix4d() << 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1).finished());
+
+                    Material mat;
+                    bool has_colors = !pcd->colors_.empty();
+                    bool has_normals = !pcd->normals_.empty();
+                    mat.base_color = CalcDefaultUnlitColor();
+                    mat.shader = kShaderUnlit;
+                    if (has_colors) {
+                        mat.base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+                    }
+                    if (has_normals) {
+                        mat.base_color = {1.0f, 1.0f, 1.0f, 1.0f};
+                        mat.shader = kShaderLit;
+                    }
+                    mat.point_size = ConvertToScaledPixels(ui_state_.point_size);
+
+                    auto first = scene_->GetScene()->GetGeometries().empty();
+                    scene_->GetScene()->RemoveGeometry("__realsense");
+                    scene_->GetScene()->AddGeometry("__realsense", pcd.get(), mat);
+                    if (first) {
+                        ResetCameraToDefault();
+                    }
+                    scene_->ForceRedraw();
                 });
             }
         });

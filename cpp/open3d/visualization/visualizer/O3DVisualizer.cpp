@@ -1894,10 +1894,18 @@ struct O3DVisualizer::Impl {
             while (flag_captrue_) {
                 auto im_rgbd = rs_.CaptureFrame(true, align_streams).ToLegacyRGBDImage();
                 gui::Application::GetInstance().PostToMainThread(window_, [this, im_rgbd, depth_scale]() {
-                    auto depth_image_ptr = std::make_shared<geometry::Image>(im_rgbd.depth_);
                     auto color_image_ptr = std::make_shared<geometry::Image>(im_rgbd.color_);
+                    // SetBackground() add background image as a geometry, this cause memory leak if we SetBackground again and again
+                    // see FilamentScene::SetBackground() --> AddGeometry(kBackgroundName, quad, m); // kBackgroundName = "__background"
+                    // as a quick and ugly fix, here we Remove the "__background" geometry before REPLACE the background.
+                    aux_color_scene_->GetScene()->GetScene()->RemoveGeometry("__background");
                     aux_color_scene_->GetScene()->SetBackground(ui_state_.bg_color, color_image_ptr);
                     aux_color_scene_->ForceRedraw();
+                    // SetBackground() add background image as a geometry, this cause memory leak if we SetBackground again and again
+                    // see FilamentScene::SetBackground() --> AddGeometry(kBackgroundName, quad, m); // kBackgroundName = "__background"
+                    // as a quick and ugly fix, here we Remove the "__background" geometry before REPLACE the background.
+                    auto depth_image_ptr = std::make_shared<geometry::Image>(im_rgbd.depth_);
+                    aux_depth_scene_->GetScene()->GetScene()->RemoveGeometry("__background");
                     aux_depth_scene_->GetScene()->SetBackground(
                             ui_state_.bg_color,
                             depth_image_ptr->ConvertDepthToFloatImage(depth_scale)->CreateImageFromFloatImage<uint8_t>());

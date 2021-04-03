@@ -1432,6 +1432,8 @@ struct O3DVisualizer::Impl {
         ui_state_.show_aux_scenes = show;
         settings.show_aux_scenes->SetChecked(show);  // in case called manually
         window_->SetNeedsLayout();
+    }
+    
     void ShowGround(bool show) {
         ui_state_.show_ground = show;
         settings.show_ground->SetChecked(show);  // in case called manually

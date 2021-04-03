@@ -357,6 +357,8 @@ struct GuiVisualizer::Impl {
     int app_menu_custom_items_index_ = -1;
     std::shared_ptr<gui::Menu> app_menu_;
 
+    bool sun_follows_camera_ = false;
+
     void InitializeMaterials(rendering::Renderer &renderer,
                              const std::string &resource_path) {
         settings_.lit_material_.shader = "defaultLit";
@@ -420,6 +422,9 @@ struct GuiVisualizer::Impl {
         scene_wgt_->ShowSkybox(settings_.model_.GetShowSkybox());
 
         scene_wgt_->GetScene()->ShowAxes(settings_.model_.GetShowAxes());
+        scene_wgt_->GetScene()->ShowGroundPlane(
+                settings_.model_.GetShowGround(),
+                rendering::Scene::GroundPlane::XZ);
 
         UpdateLighting(renderer, settings_.model_.GetLighting());
 
@@ -491,11 +496,33 @@ private:
             this->SetIBL(renderer, "");
         }
 
+        if (sun_follows_camera_ != settings_.model_.GetSunFollowsCamera()) {
+            sun_follows_camera_ = settings_.model_.GetSunFollowsCamera();
+            if (sun_follows_camera_) {
+                scene_wgt_->SetOnCameraChanged([this](rendering::Camera *cam) {
+                    auto render_scene = scene_wgt_->GetScene()->GetScene();
+                    render_scene->SetSunLightDirection(cam->GetForwardVector());
+                });
+                render_scene->SetSunLightDirection(
+                        scene->GetCamera()->GetForwardVector());
+                settings_.wgt_mouse_sun->SetEnabled(false);
+                scene_wgt_->SetSunInteractorEnabled(false);
+            } else {
+                scene_wgt_->SetOnCameraChanged(
+                        std::function<void(rendering::Camera *)>());
+                settings_.wgt_mouse_sun->SetEnabled(true);
+                scene_wgt_->SetSunInteractorEnabled(true);
+            }
+        }
+
         render_scene->EnableIndirectLight(lighting.ibl_enabled);
         render_scene->SetIndirectLightIntensity(float(lighting.ibl_intensity));
         render_scene->SetIndirectLightRotation(lighting.ibl_rotation);
-        render_scene->SetSunLight(lighting.sun_dir, lighting.sun_color,
-                                  float(lighting.sun_intensity));
+        render_scene->SetSunLightColor(lighting.sun_color);
+        render_scene->SetSunLightIntensity(float(lighting.sun_intensity));
+        if (!sun_follows_camera_) {
+            render_scene->SetSunLightDirection(lighting.sun_dir);
+        }
         render_scene->EnableSunLight(lighting.sun_enabled);
     }
 
@@ -610,7 +637,7 @@ void GuiVisualizer::Init() {
         help_menu->AddSeparator();
         help_menu->AddItem("About", HELP_ABOUT);
         help_menu->AddItem("Contact", HELP_CONTACT);
-#if defined(__APPLE__) && GUI_USE_NATIVE_MENUS
+#if defined(__APPLE__)
         // macOS adds a special search item to menus named "Help",
         // so add a space to avoid that.
         menu->AddMenu("Help ", help_menu);
@@ -772,6 +799,7 @@ void GuiVisualizer::SetGeometry(
     if (loaded_model) {
         scene3d->AddModel(MODEL_NAME, impl_->loaded_model_);
         impl_->settings_.model_.SetDisplayingPointClouds(false);
+        loaded_material.shader = "defaultLit";
     } else {
         // NOTE: If a model was NOT loaded then these must be point clouds
         std::shared_ptr<const geometry::Geometry> g = geometry;
@@ -817,9 +845,9 @@ void GuiVisualizer::SetGeometry(
     // Setup UI for loaded model/point cloud
     impl_->settings_.model_.UnsetCustomDefaultColor();
     if (loaded_model) {
+        impl_->settings_.view_->ShowFileMaterialEntry(true);
         impl_->settings_.model_.SetCurrentMaterials(
                 GuiSettingsModel::MATERIAL_FROM_FILE_NAME);
-        impl_->settings_.view_->ShowFileMaterialEntry(true);
     } else {
         impl_->settings_.view_->ShowFileMaterialEntry(false);
     }
@@ -863,8 +891,18 @@ void GuiVisualizer::Layout(const gui::Theme &theme) {
 
 void GuiVisualizer::StartRPCInterface(const std::string &address, int timeout) {
 #ifdef BUILD_RPC_INTERFACE
-    impl_->receiver_ = std::make_shared<Receiver>(
-            this, impl_->scene_wgt_->GetScene(), address, timeout);
+    auto on_geometry = [this](std::shared_ptr<geometry::Geometry3D> geom,
+                              const std::string &path, int time,
+                              const std::string &layer) {
+        // Rather than duplicating the logic to figure out the correct material,
+        // just add with the default material and pretend the user changed the
+        // current material and update everyone's material.
+        impl_->scene_wgt_->GetScene()->AddGeometry(path, geom.get(),
+                                                   rendering::Material());
+        impl_->UpdateFromModel(GetRenderer(), true);
+    };
+    impl_->receiver_ =
+            std::make_shared<Receiver>(address, timeout, this, on_geometry);
     try {
         utility::LogInfo("Starting to listen on {}", address);
         impl_->receiver_->Start();
@@ -923,9 +961,16 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
 
         bool model_success = false;
         if (geometry_type & io::CONTAINS_TRIANGLES) {
+            const float ioProgressAmount = 1.0f;
             try {
-                model_success = io::ReadTriangleModel(
-                        path, impl_->loaded_model_, false);
+                io::ReadTriangleModelOptions opt;
+                opt.update_progress = [ioProgressAmount,
+                                       UpdateProgress](double percent) -> bool {
+                    UpdateProgress(ioProgressAmount * float(percent / 100.0));
+                    return true;
+                };
+                model_success =
+                        io::ReadTriangleModel(path, impl_->loaded_model_, opt);
             } catch (...) {
                 model_success = false;
             }

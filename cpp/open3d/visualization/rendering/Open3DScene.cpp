@@ -105,7 +105,9 @@ void RecreateAxis(Scene* scene,
     }
     axis_length = std::max(axis_length, 0.25 * bounds.GetCenter().norm());
     auto mesh = CreateAxisGeometry(axis_length);
-    scene->AddGeometry(kAxisObjectName, *mesh, Material());
+    Material mat;
+    mat.shader = "defaultUnlit";
+    scene->AddGeometry(kAxisObjectName, *mesh, mat);
     // It looks awkward to have the axis cast a a shadow, and even stranger
     // to receive a shadow.
     scene->GeometryShadows(kAxisObjectName, false, false);
@@ -137,6 +139,19 @@ View* Open3DScene::GetView() const {
     return scene->GetView(view_);
 }
 
+void Open3DScene::SetViewport(std::int32_t x,
+                              std::int32_t y,
+                              std::uint32_t width,
+                              std::uint32_t height) {
+    auto view = GetView();
+    // Since we are rendering into a texture (EnableViewCaching(true) below),
+    // we need to use the entire texture; the viewport passed in is the viewport
+    // with respect to the window, and we are setting the viewport with respect
+    // to the render target here.
+    view->SetViewport(0, 0, width, height);
+    view->EnableViewCaching(true);
+}
+
 void Open3DScene::ShowSkybox(bool enable) {
     auto scene = renderer_.GetScene(scene_);
     scene->ShowSkybox(enable);
@@ -155,6 +170,11 @@ void Open3DScene::SetBackground(const Eigen::Vector4f& color,
                                 std::shared_ptr<geometry::Image> image /*=0*/) {
     auto scene = renderer_.GetScene(scene_);
     scene->SetBackground(color, image);
+}
+
+void Open3DScene::ShowGroundPlane(bool enable, Scene::GroundPlane plane) {
+    auto scene = renderer_.GetScene(scene_);
+    scene->EnableGroundPlane(enable, plane);
 }
 
 void Open3DScene::SetLighting(LightingProfile profile,

@@ -34,8 +34,10 @@
 #include "open3d/Open3DConfig.h"
 #include "open3d/geometry/Image.h"
 #include "open3d/geometry/LineSet.h"
+#include "open3d/geometry/Octree.h"
 #include "open3d/geometry/PointCloud.h"
 #include "open3d/io/FileFormatIO.h"
+#include "open3d/geometry/VoxelGrid.h"
 #include "open3d/io/ImageIO.h"
 #include "open3d/io/ModelIO.h"
 #include "open3d/io/PointCloudIO.h"
@@ -417,6 +419,8 @@ struct O3DVisualizer::Impl {
         Checkbox *show_skybox;
         Checkbox *show_axes;
         Checkbox *show_aux_scenes;
+        Checkbox *show_ground;
+        Combobox *ground_plane;
         ColorEdit *bg_color;
         Slider *point_size;
         Combobox *shader;
@@ -760,11 +764,33 @@ struct O3DVisualizer::Impl {
         settings.show_axes->SetOnChecked(
                 [this](bool is_checked) { this->ShowAxes(is_checked); });
 
+        settings.show_ground = new Checkbox("Show Ground");
+        settings.show_ground->SetOnChecked(
+                [this](bool is_checked) { this->ShowGround(is_checked); });
+
+        settings.ground_plane = new Combobox();
+        settings.ground_plane->AddItem("XZ");
+        settings.ground_plane->AddItem("XY");
+        settings.ground_plane->AddItem("YZ");
+        settings.ground_plane->SetOnValueChanged([this](const char *item,
+                                                        int idx) {
+            if (idx == 1) {
+                ui_state_.ground_plane = rendering::Scene::GroundPlane::XY;
+            } else if (idx == 2) {
+                ui_state_.ground_plane = rendering::Scene::GroundPlane::YZ;
+            } else {
+                ui_state_.ground_plane = rendering::Scene::GroundPlane::XZ;
+            }
+            this->ShowGround(ui_state_.show_ground);
+        });
+
         h = new Horiz(v_spacing);
         h->AddChild(GiveOwnership(settings.show_axes));
         h->AddFixed(em);
         h->AddChild(GiveOwnership(settings.show_skybox));
         settings.scene_panel->AddChild(GiveOwnership(h));
+        settings.scene_panel->AddChild(GiveOwnership(settings.show_ground));
+        settings.scene_panel->AddChild(GiveOwnership(settings.ground_plane));
 
         settings.show_aux_scenes = new Checkbox("Show Aux Scenes");
         settings.show_aux_scenes->SetOnChecked(
@@ -1033,7 +1059,7 @@ struct O3DVisualizer::Impl {
     void AddGeometry(const std::string &name,
                      std::shared_ptr<geometry::Geometry3D> geom,
                      std::shared_ptr<t::geometry::Geometry> tgeom,
-                     rendering::Material *material,
+                     const rendering::Material *material,
                      const std::string &group,
                      double time,
                      bool is_visible) {
@@ -1059,6 +1085,9 @@ struct O3DVisualizer::Impl {
                     std::dynamic_pointer_cast<geometry::AxisAlignedBoundingBox>(
                             geom);
             auto mesh = std::dynamic_pointer_cast<geometry::MeshBase>(geom);
+            auto voxel_grid =
+                    std::dynamic_pointer_cast<geometry::VoxelGrid>(geom);
+            auto octree = std::dynamic_pointer_cast<geometry::Octree>(geom);
 
             auto t_cloud =
                     std::dynamic_pointer_cast<t::geometry::PointCloud>(tgeom);
@@ -1086,6 +1115,12 @@ struct O3DVisualizer::Impl {
             } else if (t_mesh) {
                 has_normals = !t_mesh->HasVertexNormals();
                 has_colors = true;  // always want base_color as white
+            } else if (voxel_grid) {
+                has_normals = false;
+                has_colors = voxel_grid->HasColors();
+            } else if (octree) {
+                has_normals = false;
+                has_colors = true;
             }
 
             mat.base_color = CalcDefaultUnlitColor();
@@ -1319,13 +1354,17 @@ struct O3DVisualizer::Impl {
         return DrawObject();
     }
 
+    void Add3DLabel(const Eigen::Vector3f &pos, const char *text) {
+        scene_->AddLabel(pos, text);
+    }
+
+    void Clear3DLabels() { scene_->ClearLabels(); }
+
     void SetupCamera(float fov,
                      const Eigen::Vector3f &center,
                      const Eigen::Vector3f &eye,
                      const Eigen::Vector3f &up) {
-        auto scene = scene_->GetScene();
-        scene_->SetupCamera(fov, scene->GetBoundingBox(), {0.0f, 0.0f, 0.0f});
-        scene->GetCamera()->LookAt(center, eye, up);
+        scene_->LookAt(center, eye, up);
         scene_->ForceRedraw();
     }
 
@@ -1393,6 +1432,27 @@ struct O3DVisualizer::Impl {
         ui_state_.show_aux_scenes = show;
         settings.show_aux_scenes->SetChecked(show);  // in case called manually
         window_->SetNeedsLayout();
+    void ShowGround(bool show) {
+        ui_state_.show_ground = show;
+        settings.show_ground->SetChecked(show);  // in case called manually
+        scene_->GetScene()->ShowGroundPlane(show, ui_state_.ground_plane);
+        scene_->ForceRedraw();
+    }
+
+    void SetGroundPlane(rendering::Scene::GroundPlane plane) {
+        ui_state_.ground_plane = plane;
+        if (plane == rendering::Scene::GroundPlane::XZ) {
+            settings.ground_plane->SetSelectedIndex(0);
+        } else if (plane == rendering::Scene::GroundPlane::XY) {
+            settings.ground_plane->SetSelectedIndex(1);
+        } else {
+            settings.ground_plane->SetSelectedIndex(2);
+        }
+        // Update ground plane if it is currently showing
+        if (ui_state_.show_ground) {
+            scene_->GetScene()->ShowGroundPlane(ui_state_.show_ground, plane);
+            scene_->ForceRedraw();
+        }
     }
 
     void SetPointSize(int px) {
@@ -1438,8 +1498,7 @@ struct O3DVisualizer::Impl {
     void OverrideMaterial(const std::string &name,
                           const Material &original_material,
                           O3DVisualizer::Shader shader) {
-        bool is_lines = (original_material.shader == "unlitLine" ||
-                         original_material.shader == "lines");
+        bool is_lines = (original_material.shader == "unlitLine");
         auto scene = scene_->GetScene();
         // Lines are already unlit, so keep using the original shader when in
         // unlit mode so that we can keep the wide lines.
@@ -1523,11 +1582,15 @@ struct O3DVisualizer::Impl {
         }
 
         scene_->SetViewControls(mode);
+        ui_state_.mouse_mode = mode;
         settings.view_mouse_mode = mode;
         for (const auto &t_b : settings.mouse_buttons) {
             t_b.second->SetOn(false);
         }
-        settings.mouse_buttons[mode]->SetOn(true);
+        auto it = settings.mouse_buttons.find(mode);
+        if (it != settings.mouse_buttons.end()) {
+            it->second->SetOn(true);
+        }
     }
 
     void SetPicking() {
@@ -1640,6 +1703,7 @@ struct O3DVisualizer::Impl {
         ShowSkybox(ui_state_.show_skybox);
         ShowAxes(ui_state_.show_axes);
         ShowAuxScenes(ui_state_.show_aux_scenes);
+        ShowGround(ui_state_.show_ground);
 
         if (point_size_changed) {
             SetPointSize(ui_state_.point_size);
@@ -2192,6 +2256,28 @@ Open3DScene *O3DVisualizer::GetScene() const {
 
 void O3DVisualizer::StartRPCInterface(const std::string &address, int timeout) {
     impl_->StartRPCInterface(address, timeout);
+// #ifdef BUILD_RPC_INTERFACE
+//     auto on_geometry = [this](std::shared_ptr<geometry::Geometry3D> geom,
+//                               const std::string &path, int time,
+//                               const std::string &layer) {
+//         impl_->AddGeometry(path, geom, nullptr, nullptr, layer, time, true);
+//         if (impl_->objects_.size() == 1) {
+//             impl_->ResetCameraToDefault();
+//         }
+//     };
+
+//     impl_->receiver_ =
+//             std::make_shared<Receiver>(address, timeout, this, on_geometry);
+//     try {
+//         utility::LogInfo("Starting to listen on {}", address);
+//         impl_->receiver_->Start();
+//     } catch (std::exception &e) {
+//         utility::LogWarning("Failed to start RPC interface: {}", e.what());
+//     }
+// #else
+//     utility::LogWarning(
+//             "O3DVisualizer::StartRPCInterface: RPC interface not built");
+// #endif
 }
 
 void O3DVisualizer::StopRPCInterface() {
@@ -2248,27 +2334,35 @@ void O3DVisualizer::SetBackground(
 
 void O3DVisualizer::SetShader(Shader shader) { impl_->SetShader(shader); }
 
-void O3DVisualizer::AddGeometry(const std::string &name,
-                                std::shared_ptr<geometry::Geometry3D> geom,
-                                rendering::Material *material /*= nullptr*/,
-                                const std::string &group /*= ""*/,
-                                double time /*= 0.0*/,
-                                bool is_visible /*= true*/) {
+void O3DVisualizer::AddGeometry(
+        const std::string &name,
+        std::shared_ptr<geometry::Geometry3D> geom,
+        const rendering::Material *material /*=nullptr*/,
+        const std::string &group /*= ""*/,
+        double time /*= 0.0*/,
+        bool is_visible /*= true*/) {
     impl_->AddGeometry(name, geom, nullptr, material, group, time, is_visible);
 }
 
-void O3DVisualizer::AddGeometry(const std::string &name,
-                                std::shared_ptr<t::geometry::Geometry> tgeom,
-                                rendering::Material *material /*= nullptr*/,
-                                const std::string &group /*= ""*/,
-                                double time /*= 0.0*/,
-                                bool is_visible /*= true*/) {
+void O3DVisualizer::AddGeometry(
+        const std::string &name,
+        std::shared_ptr<t::geometry::Geometry> tgeom,
+        const rendering::Material *material /*=nullptr*/,
+        const std::string &group /*= ""*/,
+        double time /*= 0.0*/,
+        bool is_visible /*= true*/) {
     impl_->AddGeometry(name, nullptr, tgeom, material, group, time, is_visible);
 }
 
 void O3DVisualizer::LoadGeometry(const std::string &path) {
     return impl_->LoadGeometry(path);
 }
+
+void O3DVisualizer::Add3DLabel(const Eigen::Vector3f &pos, const char *text) {
+    impl_->Add3DLabel(pos, text);
+}
+
+void O3DVisualizer::Clear3DLabels() { impl_->Clear3DLabels(); }
 
 void O3DVisualizer::RemoveGeometry(const std::string &name) {
     return impl_->RemoveGeometry(name);
@@ -2293,12 +2387,22 @@ void O3DVisualizer::ShowSkybox(bool show) { impl_->ShowSkybox(show); }
 
 void O3DVisualizer::ShowAxes(bool show) { impl_->ShowAxes(show); }
 
+void O3DVisualizer::ShowGround(bool show) { impl_->ShowGround(show); }
+
+void O3DVisualizer::SetGroundPlane(rendering::Scene::GroundPlane plane) {
+    impl_->SetGroundPlane(plane);
+}
+
 void O3DVisualizer::SetPointSize(int point_size) {
     impl_->SetPointSize(point_size);
 }
 
 void O3DVisualizer::SetLineWidth(int line_width) {
     impl_->SetLineWidth(line_width);
+}
+
+void O3DVisualizer::SetMouseMode(SceneWidget::Controls mode) {
+    impl_->SetMouseMode(mode);
 }
 
 void O3DVisualizer::EnableGroup(const std::string &group, bool enable) {
@@ -2354,7 +2458,9 @@ void O3DVisualizer::SetAnimating(bool is_animating) {
 void O3DVisualizer::SetupCamera(float fov,
                                 const Eigen::Vector3f &center,
                                 const Eigen::Vector3f &eye,
-                                const Eigen::Vector3f &up) {}
+                                const Eigen::Vector3f &up) {
+    return impl_->SetupCamera(fov, center, eye, up);
+}
 
 void O3DVisualizer::ResetCameraToDefault() {
     return impl_->ResetCameraToDefault();

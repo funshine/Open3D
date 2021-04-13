@@ -321,7 +321,6 @@ void Receiver::SetGeometry(std::shared_ptr<geometry::Geometry3D> geom,
                 });
         return;
     }
-    std::shared_ptr<rendering::Open3DScene> scene = scene_;
     gui::Application::GetInstance().PostToMainThread(
             window_, [this, geom, path, time, layer]() {
                 on_geometry_(geom, path, time, layer);

@@ -318,9 +318,9 @@ public:
 
     float GetValue() const { return progressbar_->GetValue(); }
 
-    Size CalcPreferredSize(const Theme &theme) const override {
-        auto label_pref = label_->CalcPreferredSize(theme);
-        auto progressbar_pref = progressbar_->CalcPreferredSize(theme);
+    Size CalcPreferredSize(const Theme &theme, const Constraints& constraints) const override {
+        auto label_pref = label_->CalcPreferredSize(theme, constraints);
+        auto progressbar_pref = progressbar_->CalcPreferredSize(theme, constraints);
         int h = label_pref.height + progressbar_pref.height + 2 * theme.font_size;
         return Size(std::max(label_pref.width, 30 * theme.font_size), h);
     }
@@ -1034,13 +1034,21 @@ struct O3DVisualizer::Impl {
 
     void StartRPCInterface(const std::string& address, int timeout) {
 #ifdef BUILD_RPC_INTERFACE
-        this->receiver_ = std::make_shared<Receiver>(
-            this->window_, this->scene_->GetScene(), address, timeout);
+        auto on_geometry = [this](std::shared_ptr<geometry::Geometry3D> geom,
+                                const std::string &path, int time,
+                                const std::string &layer) {
+            this->AddGeometry(path, geom, nullptr, nullptr, layer, time, true);
+            if (this->objects_.size() == 1) {
+                this->ResetCameraToDefault();
+            }
+        };
+
+        this->receiver_ =
+                std::make_shared<Receiver>(address, timeout, this->window_, on_geometry);
         try {
             utility::LogInfo("Starting to listen on {}", address);
             this->receiver_->Start();
-        }
-        catch (std::exception& e) {
+        } catch (std::exception &e) {
             utility::LogWarning("Failed to start RPC interface: {}", e.what());
         }
 #else
@@ -2535,7 +2543,7 @@ void O3DVisualizer::Layout(const Theme &theme) {
     }
 
     if(impl_->progressbar_->IsVisible()) {
-        auto progressbar_size = impl_->progressbar_->CalcPreferredSize(theme);
+        auto progressbar_size = impl_->progressbar_->CalcPreferredSize(theme, gui::Widget::Constraints());
         impl_->progressbar_->SetFrame(Rect(f.GetLeft(),
                                            f.GetBottom() - progressbar_size.height,
                                            progressbar_size.width,

@@ -2271,28 +2271,6 @@ Open3DScene *O3DVisualizer::GetScene() const {
 
 void O3DVisualizer::StartRPCInterface(const std::string &address, int timeout) {
     impl_->StartRPCInterface(address, timeout);
-// #ifdef BUILD_RPC_INTERFACE
-//     auto on_geometry = [this](std::shared_ptr<geometry::Geometry3D> geom,
-//                               const std::string &path, int time,
-//                               const std::string &layer) {
-//         impl_->AddGeometry(path, geom, nullptr, nullptr, layer, time, true);
-//         if (impl_->objects_.size() == 1) {
-//             impl_->ResetCameraToDefault();
-//         }
-//     };
-
-//     impl_->receiver_ =
-//             std::make_shared<Receiver>(address, timeout, this, on_geometry);
-//     try {
-//         utility::LogInfo("Starting to listen on {}", address);
-//         impl_->receiver_->Start();
-//     } catch (std::exception &e) {
-//         utility::LogWarning("Failed to start RPC interface: {}", e.what());
-//     }
-// #else
-//     utility::LogWarning(
-//             "O3DVisualizer::StartRPCInterface: RPC interface not built");
-// #endif
 }
 
 void O3DVisualizer::StopRPCInterface() {

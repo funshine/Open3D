@@ -681,12 +681,13 @@ list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS Open3D::3rdparty_jpeg)
 # jsoncpp: always compile from source to avoid ABI issues.
 include(${Open3D_3RDPARTY_DIR}/jsoncpp/jsoncpp.cmake)
 open3d_import_3rdparty_library(3rdparty_jsoncpp
+    PUBLIC
     INCLUDE_DIRS ${JSONCPP_INCLUDE_DIRS}
     LIB_DIR      ${JSONCPP_LIB_DIR}
     LIBRARIES    ${JSONCPP_LIBRARIES}
     DEPENDS      ext_jsoncpp
 )
-list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS Open3D::3rdparty_jsoncpp)
+list(APPEND Open3D_3RDPARTY_PUBLIC_TARGETS Open3D::3rdparty_jsoncpp)
 
 # liblzf
 if(USE_SYSTEM_LIBLZF)
@@ -1151,10 +1152,11 @@ endif()
 # msgpack
 include(${Open3D_3RDPARTY_DIR}/msgpack/msgpack_build.cmake)
 open3d_import_3rdparty_library(3rdparty_msgpack
+    PUBLIC
     INCLUDE_DIRS ${MSGPACK_INCLUDE_DIRS}
     DEPENDS      ext_msgpack-c
 )
-list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS Open3D::3rdparty_msgpack)
+list(APPEND Open3D_3RDPARTY_PUBLIC_TARGETS Open3D::3rdparty_msgpack)
 
 # TBB
 include(${Open3D_3RDPARTY_DIR}/mkl/tbb.cmake)

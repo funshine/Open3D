@@ -1,4 +1,4 @@
-add_library(core OBJECT)
+open3d_ispc_add_library(core OBJECT)
 
 target_sources(core PRIVATE
     AdvancedIndexing.cpp
@@ -14,6 +14,7 @@ target_sources(core PRIVATE
     SizeVector.cpp
     Tensor.cpp
     TensorCheck.cpp
+    TensorFunction.cpp
     TensorKey.cpp
     TensorList.cpp
 )
@@ -62,6 +63,8 @@ target_sources(core PRIVATE
     linalg/SVDCPU.cpp
     linalg/Tri.cpp
     linalg/TriCPU.cpp
+    linalg/AddMM.cpp
+    linalg/AddMMCPU.cpp
 )
 
 target_sources(core PRIVATE
@@ -102,11 +105,23 @@ if (BUILD_CUDA_MODULE)
         linalg/SolveCUDA.cpp
         linalg/SVDCUDA.cpp
         linalg/TriCUDA.cu
+        linalg/AddMMCUDA.cpp
     )
 
     target_sources(core PRIVATE
         nns/KnnSearchOps.cu
         nns/FixedRadiusSearchOps.cu
+    )
+endif()
+
+if (BUILD_ISPC_MODULE)
+    target_sources(core PRIVATE
+        Indexer.ispc
+    )
+
+    target_sources(core PRIVATE
+        kernel/BinaryEWCPU.ispc
+        kernel/UnaryEWCPU.ispc
     )
 endif()
 

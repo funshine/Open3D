@@ -119,5 +119,5 @@ macro(open3d_add_app SRC_DIR APP_NAME TARGET_NAME)
 endmacro()
 
 if (BUILD_GUI)
-    open3d_add_app(Open3DViewer Open3D Open3DViewer)
+    # open3d_add_app(Open3DViewer Open3D Open3DViewer)
 endif()

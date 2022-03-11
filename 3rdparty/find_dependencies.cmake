@@ -725,7 +725,7 @@ if(NOT USE_SYSTEM_JSONCPP)
         DEPENDS      ext_jsoncpp
     )
 endif()
-list(APPEND Open3D_3RDPARTY_PRIVATE_TARGETS Open3D::3rdparty_jsoncpp)
+list(APPEND Open3D_3RDPARTY_PUBLIC_TARGETS Open3D::3rdparty_jsoncpp)
 
 # liblzf
 if(USE_SYSTEM_LIBLZF)

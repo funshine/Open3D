@@ -114,12 +114,27 @@ protected:
 class SingleDownloadDataset : public Dataset {
 public:
     SingleDownloadDataset(const std::string& prefix,
-                          const std::vector<std::string>& urls,
+                          const std::vector<std::string>& url_mirrors,
                           const std::string& md5,
                           const bool no_extract = false,
                           const std::string& data_root = "");
 
     virtual ~SingleDownloadDataset() {}
+};
+
+/// \class MultiDownloadDataset
+/// \brief This class allows user to create simple dataset which includes
+/// multiple file downloading and extracting / copying.
+class MultiDownloadDataset : public Dataset {
+public:
+    MultiDownloadDataset(
+            const std::string& prefix,
+            const std::vector<std::vector<std::string>>& url_mirrors_list,
+            const std::vector<std::string>& md5_list,
+            const bool no_extract = false,
+            const std::string& data_root = "");
+
+    virtual ~MultiDownloadDataset() {}
 };
 
 /// \class DemoICPPointClouds
@@ -557,7 +572,7 @@ public:
     SwordModel(const std::string& data_root = "");
 
     /// \brief Returns path to the `filename`. By default it returns the path to
-    /// `mokey.obj` file. Refer documentation page for available options.
+    /// `sword.obj` file. Refer documentation page for available options.
     std::string GetPath(const std::string filename = "sword_model") const {
         return map_filename_to_path_.at(filename);
     };
@@ -584,11 +599,217 @@ public:
     CrateModel(const std::string& data_root = "");
 
     /// \brief Returns path to the `filename`. By default it returns the path to
-    /// `mokey.obj` file. Refer documentation page for available options.
+    /// `crate.obj` file. Refer documentation page for available options.
     std::string GetPath(const std::string filename = "crate_model") const {
         return map_filename_to_path_.at(filename);
     };
 
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class FlightHelmetModel
+/// \brief Data class for `FlightHelmetModel` contains a flight helmet model
+/// file, along with material and various other texture files. The model file
+/// can be accessed using `GetPath()`, however in order to access the paths to
+/// the texture files one may use `GetPath(filename)` method or get the
+/// unordered map of filename to path using `GetPathMap()`.
+class FlightHelmetModel : public SingleDownloadDataset {
+public:
+    FlightHelmetModel(const std::string& data_root = "");
+
+    /// \brief Returns path to the `filename`. By default it returns the path to
+    /// `FlightHelmet.gltf` file. Refer documentation page for available
+    /// options.
+    std::string GetPath(const std::string filename = "flight_helmet") const {
+        return map_filename_to_path_.at(filename);
+    };
+
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class MetalTexture
+/// \brief Data class for `MetalTexture` contains albedo, normal, roughness and
+/// metallic texture files for metal based material.
+class MetalTexture : public SingleDownloadDataset {
+public:
+    MetalTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
+    /// \brief Returns the path to metallic texture image.
+    std::string GetMetallicTexturePath() const {
+        return map_filename_to_path_.at("metallic");
+    };
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class PaintedPlasterTexture
+/// \brief Data class for `PaintedPlasterTexture` contains albedo, normal and
+/// roughness texture files for painted plaster based material.
+class PaintedPlasterTexture : public SingleDownloadDataset {
+public:
+    PaintedPlasterTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class TilesTexture
+/// \brief Data class for `TilesTexture` contains albedo, normal and roughness
+/// texture files for tiles based material.
+class TilesTexture : public SingleDownloadDataset {
+public:
+    TilesTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class TerrazzoTexture
+/// \brief Data class for `TerrazzoTexture` contains albedo, normal and
+/// roughness texture files for terrazzo based material.
+class TerrazzoTexture : public SingleDownloadDataset {
+public:
+    TerrazzoTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class WoodTexture
+/// \brief Data class for `WoodTexture` contains albedo, normal and roughness
+/// texture files for wood based material.
+class WoodTexture : public SingleDownloadDataset {
+public:
+    WoodTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
+    /// \brief Returns the map of filename to path. Refer documentation page for
+    /// available options.
+    std::unordered_map<std::string, std::string> GetPathMap() const {
+        return map_filename_to_path_;
+    }
+
+private:
+    /// Map to path for the avialble filenames.
+    std::unordered_map<std::string, std::string> map_filename_to_path_;
+};
+
+/// \class WoodFloorTexture
+/// \brief Data class for `WoodFloorTexture` contains albedo, normal and
+/// roughness texture files for wooden floor based material.
+class WoodFloorTexture : public SingleDownloadDataset {
+public:
+    WoodFloorTexture(const std::string& data_root = "");
+    /// \brief Returns the path to albedo color texture image.
+    std::string GetAlbedoTexturePath() const {
+        return map_filename_to_path_.at("albedo");
+    };
+    /// \brief Returns the path to normal texture image.
+    std::string GetNormalTexturePath() const {
+        return map_filename_to_path_.at("normal");
+    };
+    /// \brief Returns the path to roughness texture image.
+    std::string GetRoughnessTexturePath() const {
+        return map_filename_to_path_.at("roughness");
+    };
     /// \brief Returns the map of filename to path. Refer documentation page for
     /// available options.
     std::unordered_map<std::string, std::string> GetPathMap() const {
@@ -652,6 +873,83 @@ public:
 private:
     /// List of paths to ply point-cloud fragments of size 53.
     std::vector<std::string> paths_;
+};
+
+/// \class LoungeRGBDImages
+/// \brief Data class for `LoungeRGBDImages` contains a sample set of 3000 color
+/// and depth images from Stanford Lounge RGBD dataset. Additionally it also
+/// contains camera trajectory log, and mesh reconstruction.
+class LoungeRGBDImages : public SingleDownloadDataset {
+public:
+    LoungeRGBDImages(const std::string& data_root = "");
+
+    /// \brief Returns List of paths to color image samples of size 3000.
+    std::vector<std::string> GetColorPaths() const { return color_paths_; };
+    /// \brief Returns List of paths to depth image samples of size 3000.
+    std::vector<std::string> GetDepthPaths() const { return depth_paths_; };
+
+    /// \brief Returns path to camera trajectory log file
+    /// `lounge_trajectory.log`.
+    std::string GetTrajectoryLogPath() const { return trajectory_log_path_; };
+    /// \brief Returns path to mesh reconstruction `lounge.ply`.
+    std::string GetReconstructionPath() const { return reconstruction_path_; };
+
+private:
+    /// List of paths to color image samples of size 3000.
+    std::vector<std::string> color_paths_;
+    /// List of paths to depth image samples of size 3000.
+    std::vector<std::string> depth_paths_;
+
+    /// Path to camera trajectory log file `lounge_trajectory.log`.
+    std::string trajectory_log_path_;
+    /// Path to mesh reconstruction.
+    std::string reconstruction_path_;
+};
+
+/// \class BedroomRGBDImages
+/// \brief Data class for `BedroomRGBDImages` contains a sample set of 21931
+/// color and depth images from Redwood RGBD dataset. Additionally it also
+/// contains camera trajectory log, and mesh reconstruction.
+class BedroomRGBDImages : public MultiDownloadDataset {
+public:
+    BedroomRGBDImages(const std::string& data_root = "");
+
+    /// \brief Returns List of paths to color image samples of size 21931.
+    std::vector<std::string> GetColorPaths() const { return color_paths_; };
+    /// \brief Returns List of paths to depth image samples of size 21931.
+    std::vector<std::string> GetDepthPaths() const { return depth_paths_; };
+
+    /// \brief Returns path to camera trajectory log file
+    /// `lounge_trajectory.log`.
+    std::string GetTrajectoryLogPath() const { return trajectory_log_path_; };
+    /// \brief Returns path to mesh reconstruction `bedroom.ply`.
+    std::string GetReconstructionPath() const { return reconstruction_path_; };
+
+private:
+    /// List of paths to color image samples of size 3000.
+    std::vector<std::string> color_paths_;
+    /// List of paths to depth image samples of size 3000.
+    std::vector<std::string> depth_paths_;
+
+    /// Path to camera trajectory log file `bedroom.log`.
+    std::string trajectory_log_path_;
+    /// Path to mesh reconstruction.
+    std::string reconstruction_path_;
+};
+
+/// \class JackJackL515Bag
+/// \brief Data class for `JackJackL515Bag` contains the RealSense L515
+/// `JackJackL515Bag.bag` file.
+class JackJackL515Bag : public SingleDownloadDataset {
+public:
+    JackJackL515Bag(const std::string& data_root = "");
+
+    /// \brief Returns path to the `JackJackL515Bag.bag` file.
+    std::string GetPath() const { return path_; };
+
+private:
+    /// Path to `JackJackL515Bag.bag` file.
+    std::string path_;
 };
 
 }  // namespace data

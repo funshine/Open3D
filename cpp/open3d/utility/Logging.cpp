@@ -93,7 +93,7 @@ void Logger::VError [[noreturn]] (const char *file,
                                   int line,
                                   const char *function,
                                   const std::string &message) const {
-    std::string err_msg = fmt::format("[Open3D Error] ({}) {}:{}: {}\n",
+    std::string err_msg = fmt::format("[Error] ({}) {}:{}: {}\n",
                                       function, file, line, message);
     err_msg = impl_->ColorString(err_msg, TextColor::Red, 1);
 #ifdef _MSC_VER  // Uncaught exception error messages not shown in Windows
@@ -106,7 +106,7 @@ void Logger::VWarning(const char *file,
                       int line,
                       const char *function,
                       const std::string &message) const {
-    std::string err_msg = fmt::format("[Open3D WARNING] {}", message);
+    std::string err_msg = fmt::format("[WARNING] {}", message);
     err_msg = impl_->ColorString(err_msg, TextColor::Yellow, 1);
     impl_->print_fcn_(err_msg);
 }
@@ -115,7 +115,7 @@ void Logger::VInfo(const char *file,
                    int line,
                    const char *function,
                    const std::string &message) const {
-    std::string err_msg = fmt::format("[Open3D INFO] {}", message);
+    std::string err_msg = fmt::format("[INFO] {}", message);
     impl_->print_fcn_(err_msg);
 }
 
@@ -123,7 +123,7 @@ void Logger::VDebug(const char *file,
                     int line,
                     const char *function,
                     const std::string &message) const {
-    std::string err_msg = fmt::format("[Open3D DEBUG] {}", message);
+    std::string err_msg = fmt::format("[DEBUG] {}", message);
     impl_->print_fcn_(err_msg);
 }
 

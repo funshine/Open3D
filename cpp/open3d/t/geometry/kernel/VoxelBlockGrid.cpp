@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/t/geometry/kernel/VoxelBlockGrid.h"
@@ -219,7 +200,8 @@ void EstimateRange(const core::Tensor& block_keys,
                    int64_t block_resolution,
                    float voxel_size,
                    float depth_min,
-                   float depth_max) {
+                   float depth_max,
+                   core::Tensor& fragment_buffer) {
     static const core::Device host("CPU:0");
     core::Tensor intrinsics_d = intrinsics.To(host, core::Float64).Contiguous();
     core::Tensor extrinsics_d = extrinsics.To(host, core::Float64).Contiguous();
@@ -227,12 +209,12 @@ void EstimateRange(const core::Tensor& block_keys,
     if (block_keys.IsCPU()) {
         EstimateRangeCPU(block_keys, range_minmax_map, intrinsics_d,
                          extrinsics_d, h, w, down_factor, block_resolution,
-                         voxel_size, depth_min, depth_max);
+                         voxel_size, depth_min, depth_max, fragment_buffer);
     } else if (block_keys.IsCUDA()) {
 #ifdef BUILD_CUDA_MODULE
         EstimateRangeCUDA(block_keys, range_minmax_map, intrinsics_d,
                           extrinsics_d, h, w, down_factor, block_resolution,
-                          voxel_size, depth_min, depth_max);
+                          voxel_size, depth_min, depth_max, fragment_buffer);
 #else
         utility::LogError("Not compiled with CUDA, but CUDA device is used.");
 #endif

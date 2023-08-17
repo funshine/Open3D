@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/geometry/TriangleMesh.h"
@@ -470,7 +451,7 @@ std::shared_ptr<PointCloud> TriangleMesh::SamplePointsUniformlyImpl(
     // sample point cloud
     bool has_vert_normal = HasVertexNormals();
     bool has_vert_color = HasVertexColors();
-    utility::random::UniformDoubleGenerator uniform_generator(0.0, 1.0);
+    utility::random::UniformRealGenerator<double> uniform_generator(0.0, 1.0);
     auto pcd = std::make_shared<PointCloud>();
     pcd->points_.resize(number_of_points);
     if (has_vert_normal || use_triangle_normal) {
@@ -575,7 +556,7 @@ std::shared_ptr<PointCloud> TriangleMesh::SamplePointsPoissonDisk(
 
     // Set-up sample elimination
     double alpha = 8;    // constant defined in paper
-    double beta = 0.5;   // constant defined in paper
+    double beta = 0.65;  // constant defined in paper
     double gamma = 1.5;  // constant defined in paper
     double ratio = double(number_of_points) / double(pcl->points_.size());
     double r_max = 2 * std::sqrt((surface_area / number_of_points) /
@@ -1617,13 +1598,10 @@ void TriangleMesh::RemoveVerticesByMask(const std::vector<bool> &vertex_mask) {
 
 std::shared_ptr<TriangleMesh> TriangleMesh::SelectByIndex(
         const std::vector<size_t> &indices, bool cleanup) const {
-    if (HasTriangleUvs()) {
-        utility::LogWarning(
-                "[SelectByIndex] This mesh contains triangle uvs that are "
-                "not handled in this function");
-    }
     auto output = std::make_shared<TriangleMesh>();
+    bool has_triangle_material_ids = HasTriangleMaterialIds();
     bool has_triangle_normals = HasTriangleNormals();
+    bool has_triangle_uvs = HasTriangleUvs();
     bool has_vertex_normals = HasVertexNormals();
     bool has_vertex_colors = HasVertexColors();
 
@@ -1655,8 +1633,17 @@ std::shared_ptr<TriangleMesh> TriangleMesh::SelectByIndex(
         if (nvidx0 >= 0 && nvidx1 >= 0 && nvidx2 >= 0) {
             output->triangles_.push_back(
                     Eigen::Vector3i(nvidx0, nvidx1, nvidx2));
+            if (has_triangle_material_ids) {
+                output->triangle_material_ids_.push_back(
+                        triangle_material_ids_[tidx]);
+            }
             if (has_triangle_normals) {
                 output->triangle_normals_.push_back(triangle_normals_[tidx]);
+            }
+            if (has_triangle_uvs) {
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 0]);
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 1]);
+                output->triangle_uvs_.push_back(triangle_uvs_[tidx * 3 + 2]);
             }
         }
     }

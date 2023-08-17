@@ -1,27 +1,8 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// The MIT License (MIT)
-//
-// Copyright (c) 2018-2021 www.open3d.org
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
+// Copyright (c) 2018-2023 www.open3d.org
+// SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
 #include "open3d/utility/Random.h"
@@ -34,14 +15,14 @@ namespace random {
 
 /// Global thread-safe singleton instance for random generation.
 /// Generates compiler/OS/device independent random numbers.
-class GlobalContext {
+class RandomContext {
 public:
-    GlobalContext(GlobalContext const&) = delete;
-    void operator=(GlobalContext const&) = delete;
+    RandomContext(RandomContext const&) = delete;
+    void operator=(RandomContext const&) = delete;
 
     /// Returns the singleton instance.
-    static GlobalContext& GetInstance() {
-        static GlobalContext instance;
+    static RandomContext& GetInstance() {
+        static RandomContext instance;
         return instance;
     }
 
@@ -59,7 +40,7 @@ public:
     std::mutex* GetMutex() { return &mutex_; }
 
 private:
-    GlobalContext() {
+    RandomContext() {
         // Randomly seed the seed by default.
         std::random_device rd;
         Seed(rd());
@@ -69,45 +50,15 @@ private:
     std::mutex mutex_;
 };
 
-void Seed(const int seed) { GlobalContext::GetInstance().Seed(seed); }
+void Seed(const int seed) { RandomContext::GetInstance().Seed(seed); }
 
-std::mt19937* GetEngine() { return GlobalContext::GetInstance().GetEngine(); }
+std::mt19937* GetEngine() { return RandomContext::GetInstance().GetEngine(); }
 
-std::mutex* GetMutex() { return GlobalContext::GetInstance().GetMutex(); }
+std::mutex* GetMutex() { return RandomContext::GetInstance().GetMutex(); }
 
 uint32_t RandUint32() {
     std::lock_guard<std::mutex> lock(*GetMutex());
     return (*GetEngine())();
-}
-
-UniformIntGenerator::UniformIntGenerator(const int low, const int high)
-    : distribution_(low, high) {
-    if (low < 0) {
-        utility::LogError("low must be > 0, but got {}.", low);
-    }
-    if (low >= high) {
-        utility::LogError("low must be < high, but got low={} and high={}.",
-                          low, high);
-    }
-}
-
-int UniformIntGenerator::operator()() {
-    std::lock_guard<std::mutex> lock(*GetMutex());
-    return distribution_(*GetEngine());
-}
-
-UniformDoubleGenerator::UniformDoubleGenerator(const double low,
-                                               const double high) {
-    if (low >= high) {
-        utility::LogError("low must be < high, but got low={} and high={}.",
-                          low, high);
-    }
-    distribution_ = std::uniform_real_distribution<double>(low, high);
-}
-
-double UniformDoubleGenerator::operator()() {
-    std::lock_guard<std::mutex> lock(*GetMutex());
-    return distribution_(*GetEngine());
 }
 
 }  // namespace random

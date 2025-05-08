@@ -1,10 +1,10 @@
-include(ExternalProject)
+include(FetchContent)
 
-ExternalProject_Add(
+FetchContent_Declare(
     ext_googletest
     PREFIX googletest
-    URL https://github.com/google/googletest/archive/refs/tags/release-1.11.0.tar.gz
-    URL_HASH SHA256=b4870bf121ff7795ba20d20bcdd8627b8e088f2d1dab299a031c1034eddc93d5
+    URL https://github.com/google/googletest/releases/download/v1.16.0/googletest-1.16.0.tar.gz
+    URL_HASH SHA256=78c676fc63881529bf97bf9d45948d905a66833fbfa5318ea2cd7478cb98f399
     DOWNLOAD_DIR "${OPEN3D_THIRD_PARTY_DOWNLOAD_DIR}/googletest"
     UPDATE_COMMAND ""
     CONFIGURE_COMMAND ""
@@ -12,5 +12,5 @@ ExternalProject_Add(
     INSTALL_COMMAND ""
 )
 
-ExternalProject_Get_Property(ext_googletest SOURCE_DIR)
-set(GOOGLETEST_SOURCE_DIR ${SOURCE_DIR})
+FetchContent_MakeAvailable(ext_googletest)
+FetchContent_GetProperties(ext_googletest SOURCE_DIR GOOGLETEST_SOURCE_DIR)

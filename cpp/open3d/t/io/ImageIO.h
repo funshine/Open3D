@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ constexpr int kOpen3DImageIODefaultQuality = -1;
 ///
 /// Supported file extensions are png, jpg/jpeg. Data type and number of
 /// channels depends on the file extension.
-/// - PNG: Dtype should be one of core::UInt8, core::UInt16
+/// - PNG: Dtype should be one of core::Bool, core::UInt8, core::UInt16
 ///        Supported number of channels are 1, 3, and 4.
 /// - JPG: Dtyppe should be core::UInt8
 ///        Supported number of channels are 1 and 3.
@@ -60,6 +60,10 @@ bool ReadImageFromPNG(const std::string &filename, geometry::Image &image);
 bool WriteImageToPNG(const std::string &filename,
                      const geometry::Image &image,
                      int quality = kOpen3DImageIODefaultQuality);
+
+bool WriteImageToPNGInMemory(std::vector<uint8_t> &output_buffer,
+                             const geometry::Image &image,
+                             int quality = kOpen3DImageIODefaultQuality);
 
 bool ReadImageFromJPG(const std::string &filename, geometry::Image &image);
 

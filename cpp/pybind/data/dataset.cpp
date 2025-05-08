@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -35,7 +35,7 @@ void pybind_data_classes(py::module& m) {
             m, "DataDescriptor",
             "DataDescriptor is a class that describes a data file. It contains "
             "the URL mirrors to download the file, the MD5 hash of the file, "
-            "and wether to extract the file.");
+            "and whether to extract the file.");
     data_descriptor
             .def(py::init([](const std::vector<std::string>& urls,
                              const std::string& md5,
@@ -165,6 +165,39 @@ void pybind_demo_crop_pointcloud(py::module& m) {
                                     "point_cloud_path");
     docstring::ClassMethodDocInject(m, "DemoCropPointCloud",
                                     "cropped_json_path");
+}
+
+void pybind_demo_doppler_icp_sequence(py::module& m) {
+    // open3d.data.DemoDopplerICPSequence
+    py::class_<DemoDopplerICPSequence,
+               PyDownloadDataset<DemoDopplerICPSequence>,
+               std::shared_ptr<DemoDopplerICPSequence>, DownloadDataset>
+            demo_doppler_icp_sequence(
+                    m, "DemoDopplerICPSequence",
+                    "Data class for `DemoDopplerICPSequence` contains an "
+                    "example sequence of 100 point clouds with Doppler "
+                    "velocity channel and corresponding ground truth poses. "
+                    "The sequence was generated using the CARLA simulator.");
+    demo_doppler_icp_sequence
+            .def(py::init<const std::string&>(), "data_root"_a = "")
+            .def_property_readonly(
+                    "paths", &DemoDopplerICPSequence::GetPaths,
+                    "Returns list of the point cloud paths in the sequence.")
+            .def_property_readonly(
+                    "calibration_path",
+                    &DemoDopplerICPSequence::GetCalibrationPath,
+                    "Path to the calibration metadata file, containing "
+                    "transformation between the vehicle and sensor frames and "
+                    "the time period.")
+            .def_property_readonly(
+                    "trajectory_path",
+                    &DemoDopplerICPSequence::GetTrajectoryPath,
+                    "Path to the ground truth poses for the entire sequence.");
+    docstring::ClassMethodDocInject(m, "DemoDopplerICPSequence", "paths");
+    docstring::ClassMethodDocInject(m, "DemoDopplerICPSequence",
+                                    "calibration_path");
+    docstring::ClassMethodDocInject(m, "DemoDopplerICPSequence",
+                                    "trajectory_path");
 }
 
 void pybind_demo_feature_matching_point_clouds(py::module& m) {
@@ -1189,6 +1222,7 @@ void pybind_data(py::module& m) {
     pybind_demo_icp_pointclouds(m_submodule);
     pybind_demo_colored_icp_pointclouds(m_submodule);
     pybind_demo_crop_pointcloud(m_submodule);
+    pybind_demo_doppler_icp_sequence(m_submodule);
     pybind_demo_feature_matching_point_clouds(m_submodule);
     pybind_demo_pose_graph_optimization(m_submodule);
     pybind_demo_custom_visualization(m_submodule);

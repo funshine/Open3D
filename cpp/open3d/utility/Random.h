@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -43,7 +43,7 @@ std::mutex* GetMutex();
 /// This function is automatically protected by the global random mutex.
 uint32_t RandUint32();
 
-/// Generate uniformly distributed random integers in [low, high).
+/// Generate uniformly distributed random integers in [low, high].
 /// This class is globally seeded by utility::random::Seed().
 /// This class is a wrapper around std::uniform_int_distribution.
 ///
@@ -54,7 +54,7 @@ uint32_t RandUint32();
 /// // Globally seed Open3D. This will affect all random functions.
 /// utility::random::Seed(0);
 ///
-/// // Generate a random int in [0, 100).
+/// // Generate a random int in [0, 100].
 /// utility::random::UniformIntGenerator<int> gen(0, 100);
 /// for (size_t i = 0; i < 10; i++) {
 ///     std::cout << gen() << std::endl;
@@ -64,17 +64,18 @@ template <typename T>
 class UniformIntGenerator {
 public:
     /// Generate uniformly distributed random integer from
-    /// [low, low + 1, ... high - 1].
+    /// [low, low + 1, ... high].
     ///
     /// \param low The lower bound (inclusive).
-    /// \param high The upper bound (exclusive). \p high must be > \p low.
+    /// \param high The upper bound (inclusive). \p high must be >= \p low.
     UniformIntGenerator(const T low, const T high) : distribution_(low, high) {
         if (low < 0) {
             utility::LogError("low must be > 0, but got {}.", low);
         }
-        if (low >= high) {
-            utility::LogError("low must be < high, but got low={} and high={}.",
-                              low, high);
+        if (low > high) {
+            utility::LogError(
+                    "low must be <= high, but got low={} and high={}.", low,
+                    high);
         }
     }
 
@@ -169,6 +170,52 @@ public:
 
 protected:
     std::normal_distribution<T> distribution_;
+};
+
+/// Generate discretely distributed integer values according to a range of
+/// weight values.
+/// This class is globally seeded by utility::random::Seed().
+/// This class is a wrapper around std::discrete_distribution.
+///
+/// Example:
+/// ```cpp
+/// #include "open3d/utility/Random.h"
+///
+/// // Globally seed Open3D. This will affect all random functions.
+/// utility::random::Seed(0);
+///
+/// // Weighted random choice of size_t
+/// std::vector<double> weights{1, 2, 3, 4, 5};
+/// utility::random::DiscreteGenerator<size_t> gen(weights.cbegin(),
+/// weights.cend()); for (size_t i = 0; i < 10; i++) {
+///     std::cout << gen() << std::endl;
+/// }
+/// ```
+template <typename T>
+class DiscreteGenerator {
+public:
+    /// Generate discretely distributed integer values according to a range of
+    /// weight values.
+    /// \param first The iterator or pointer pointing to the first element in
+    /// the range of weights.
+    /// \param last The iterator or pointer pointing to one past the last
+    /// element in the range of weights.
+    template <typename InputIt>
+    DiscreteGenerator(InputIt first, InputIt last)
+        : distribution_(first, last) {
+        if (first > last) {
+            utility::LogError("first must be <= last.");
+        }
+    }
+
+    /// Call this to generate a discretely distributed integer value.
+    T operator()() {
+        std::lock_guard<std::mutex> lock(*GetMutex());
+        return distribution_(*GetEngine());
+    }
+
+protected:
+    std::discrete_distribution<T> distribution_;
 };
 
 }  // namespace random

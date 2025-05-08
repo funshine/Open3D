@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 #include <type_traits>
@@ -27,7 +27,7 @@ void LaunchIndexReductionKernel(int64_t dim,
     OPEN3D_ASSERT_HOST_DEVICE_LAMBDA(func_t);
 
     // index: [N,], src: [N, D], dst: [M, D]
-    // In Indexer, output shape defines the actual master strides.
+    // In Indexer, output shape defines the actual primary strides.
     // However, in IndexAdd_, input dominates the iterations.
     // So put dst (output) at indexer's input, and src (input) at output.
     Indexer indexer({dst}, src, DtypePolicy::NONE);

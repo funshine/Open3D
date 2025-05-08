@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -27,12 +27,14 @@ public:
     /// Constructor.
     ///
     /// \param dataset_points Dataset points for constructing search index. Must
-    /// be 2D, with shape {n, d}.
+    /// be 2D, with shape {n, d}. SYCL tensors are not yet supported.
     // NearestNeighborSearch(const Tensor &dataset_points)
     //     : dataset_points_(dataset_points){};
     NearestNeighborSearch(const Tensor &dataset_points,
                           const Dtype &index_dtype = core::Int32)
-        : dataset_points_(dataset_points), index_dtype_(index_dtype){};
+        : dataset_points_(dataset_points), index_dtype_(index_dtype) {
+        AssertNotSYCL(dataset_points_);
+    };
     ~NearestNeighborSearch();
     NearestNeighborSearch(const NearestNeighborSearch &) = delete;
     NearestNeighborSearch &operator=(const NearestNeighborSearch &) = delete;
@@ -76,7 +78,7 @@ public:
     /// \param radius Radius.
     /// \param sort Sort the results by distance. Default is True.
     /// \return Tuple of Tensors, (indices, distances, num_neighbors):
-    /// - indicecs: Tensor of shape {total_number_of_neighbors,}, with dtype
+    /// - indices: Tensor of shape {total_number_of_neighbors,}, with dtype
     /// same as index_dtype_.
     /// - distances: Tensor of shape {total_number_of_neighbors,}, same dtype
     /// with query_points. The distances are squared L2 distances.
@@ -91,7 +93,7 @@ public:
     /// \param radii Radii of query points. Each query point has one radius.
     /// Must be 1D, with shape {n,}.
     /// \return Tuple of Tensors, (indices,distances, num_neighbors):
-    /// - indicecs: Tensor of shape {total_number_of_neighbors,}, with dtype
+    /// - indices: Tensor of shape {total_number_of_neighbors,}, with dtype
     /// same as index_dtype_.
     /// - distances: Tensor of shape {total_number_of_neighbors,}, same dtype
     /// with query_points. The distances are squared L2 distances.
@@ -108,7 +110,7 @@ public:
     /// \param max_knn Maximum number of neighbor to search per query.
     /// \return Tuple of Tensors, (indices, distances, counts):
     /// - indices: Tensor of shape {n, knn}, with dtype same as index_dtype_.
-    /// - distainces: Tensor of shape {n, knn}, with same dtype with
+    /// - distances: Tensor of shape {n, knn}, with same dtype with
     /// query_points. The distances are squared L2 distances.
     /// - counts: Counts of neighbour for each query points. [Tensor
     /// of shape {n}, with dtype same as index_dtype_].

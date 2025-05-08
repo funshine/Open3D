@@ -1,4 +1,4 @@
-.. Open3D documentation master file, created by
+.. Open3D documentation primary file, created by
    sphinx-quickstart on Mon Apr  3 14:18:28 2017.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
@@ -13,10 +13,6 @@
 Open3D: A Modern Library for 3D Data Processing
 ===============================================
 
-.. only: not latex
-
-    Contents:
-
 .. toctree::
     :maxdepth: 1
     :caption: Getting Started
@@ -28,19 +24,20 @@ Open3D: A Modern Library for 3D Data Processing
     builddocs
     docker
     arm
+    sycl
     open3d_ml
 
 .. toctree::
     :maxdepth: 2
     :caption: Tutorial
 
+    tutorial/core/index
     tutorial/geometry/index
     tutorial/t_geometry/index
+    tutorial/data/index
+    tutorial/visualization/index
     tutorial/pipelines/index
     tutorial/t_pipelines/index
-    tutorial/visualization/index
-    tutorial/core/index
-    tutorial/data/index
     tutorial/reconstruction_system/index
     tutorial/t_reconstruction_system/index
     tutorial/sensor/index

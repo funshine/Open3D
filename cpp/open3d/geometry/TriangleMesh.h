@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -116,7 +116,7 @@ public:
     /// needed.
     TriangleMesh &ComputeAdjacencyList();
 
-    /// \brief Function that removes duplicated verties, i.e., vertices that
+    /// \brief Function that removes duplicated vertices, i.e., vertices that
     /// have identical coordinates.
     TriangleMesh &RemoveDuplicatedVertices();
 
@@ -337,8 +337,7 @@ public:
     /// mesh.
     std::shared_ptr<PointCloud> SamplePointsUniformlyImpl(
             size_t number_of_points,
-            std::vector<double> &triangle_areas,
-            double surface_area,
+            const std::vector<double> &triangle_areas,
             bool use_triangle_normal);
 
     /// Function to sample points uniformly from the mesh.
@@ -561,7 +560,7 @@ public:
     /// Factory function to create a tetrahedron mesh (trianglemeshfactory.cpp).
     /// the mesh centroid will be at (0,0,0) and \p radius defines the
     /// distance from the center to the mesh vertices.
-    /// \param radius defines the distance from centroid to mesh vetices.
+    /// \param radius defines the distance from centroid to mesh vertices.
     /// \param create_uv_map add default UV map to the mesh.
     static std::shared_ptr<TriangleMesh> CreateTetrahedron(
             double radius = 1.0, bool create_uv_map = false);
@@ -569,7 +568,7 @@ public:
     /// Factory function to create an octahedron mesh (trianglemeshfactory.cpp).
     /// the mesh centroid will be at (0,0,0) and \p radius defines the
     /// distance from the center to the mesh vertices.
-    /// \param radius defines the distance from centroid to mesh vetices.
+    /// \param radius defines the distance from centroid to mesh vertices.
     /// \param create_uv_map add default UV map to the mesh.
     static std::shared_ptr<TriangleMesh> CreateOctahedron(
             double radius = 1.0, bool create_uv_map = false);
@@ -853,7 +852,7 @@ public:
         std::unordered_map<std::string, Image> additionalMaps;
     };
 
-    std::unordered_map<std::string, Material> materials_;
+    std::vector<std::pair<std::string, Material>> materials_;
 
     /// List of material ids.
     std::vector<int> triangle_material_ids_;

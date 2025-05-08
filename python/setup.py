@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------------
 # -                        Open3D: www.open3d.org                            -
 # ----------------------------------------------------------------------------
-# Copyright (c) 2018-2023 www.open3d.org
+# Copyright (c) 2018-2024 www.open3d.org
 # SPDX-License-Identifier: MIT
 # ----------------------------------------------------------------------------
 
@@ -70,6 +70,11 @@ class bdist_wheel(_bdist_wheel):
             libc.gnu_get_libc_version.restype = ctypes.c_char_p
             GLIBC_VER = libc.gnu_get_libc_version().decode("utf8").split(".")
             plat = f"manylinux_{GLIBC_VER[0]}_{GLIBC_VER[1]}{plat[5:]}"
+        elif plat[:6] == "macosx":
+            # If the Python interpreter is an universal2 app the resulting wheel is tagged as
+            # universal2 instead of the current architecture. This is a workaround to fix it.
+            plat = plat.replace("universal2", platform.machine())
+
         return python, abi, plat
 
 
@@ -114,7 +119,6 @@ classifiers = [
     "Environment :: MacOS X",
     "Environment :: Win32 (MS Windows)",
     "Environment :: X11 Applications",
-    "Environment :: GPU :: NVIDIA CUDA",
     "Intended Audience :: Developers",
     "Intended Audience :: Education",
     "Intended Audience :: Other Audience",
@@ -127,10 +131,11 @@ classifiers = [
     "Programming Language :: C",
     "Programming Language :: C++",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Education",
     "Topic :: Multimedia :: Graphics :: 3D Modeling",
     "Topic :: Multimedia :: Graphics :: 3D Rendering",
@@ -147,17 +152,24 @@ name = "@PYPI_PACKAGE_NAME@"
 with open("README.rst") as readme:
     long_description = readme.read()
 # open3d-cpu wheel for Linux x86_64
-if sys.platform.startswith("linux") and platform.machine() in (
-        'i386', 'x86_64', 'AMD64') and "@BUILD_CUDA_MODULE@" == "OFF":
+if "@BUILD_CUDA_MODULE@" == "ON":
+    classifiers.append("Environment :: GPU :: NVIDIA CUDA")
+elif (sys.platform.startswith("linux") and
+      platform.machine() in ("i386", "x86_64", "AMD64") and
+      "@BUILD_SYCL_MODULE@" == "OFF"):
     name += "-cpu"
     long_description += ("\n\nThis wheel only contains CPU functionality. "
                          "Use the open3d wheel for full functionality.")
-    classifiers.remove("Environment :: GPU :: NVIDIA CUDA")
+elif "@BUILD_SYCL_MODULE@" == "ON":
+    name += "-xpu"
+    long_description += (
+        "\n\nThis wheel contains cross-platform GPU support through SYCL.")
+    classifiers.append("Environment :: GPU")
 
 setup_args = dict(
     name=name,
     version="@PROJECT_VERSION@",
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     include_package_data=True,
     install_requires=install_requires,
     packages=find_packages(),
@@ -178,6 +190,8 @@ setup_args = dict(
     description="@PROJECT_DESCRIPTION@",
     long_description=long_description,
     long_description_content_type="text/x-rst",
+    obsoletes_dist=["open3d_python"],
+    provides_dist=["open3d", "open3d_cpu", "open3d_xpu"],  # For open3d-cpu
 )
 
 setup(**setup_args)

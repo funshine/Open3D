@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -219,9 +219,9 @@ std::shared_ptr<gui::Dialog> CreateContactDialog(gui::Window *window) {
             "Mailing list:\n"
             "Discord channel:");
     auto right_col = std::make_shared<gui::Label>(
-            "http://www.open3d.org\n"
+            "https://www.open3d.org\n"
             "http://github.org/isl-org/Open3D\n"
-            "http://www.open3d.org/index.php/subscribe/\n"
+            "https://www.open3d.org/index.php/subscribe/\n"
             "https://discord.gg/D35BGvn");
     auto ok = std::make_shared<gui::Button>("OK");
     ok->SetOnClicked([window]() { window->CloseDialog(); });
@@ -1166,10 +1166,7 @@ void GuiVisualizer::LoadGeometry(const std::string &path) {
                 model_success = false;
             }
         }
-        if (!model_success) {
-            utility::LogInfo("{} appears to be a point cloud", path.c_str());
-        }
-
+        // path appears to be a point cloud...
         auto geometry = std::shared_ptr<geometry::Geometry3D>();
         if (!model_success) {
             auto cloud = std::make_shared<geometry::PointCloud>();

@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // -                        Open3D: www.open3d.org                            -
 // ----------------------------------------------------------------------------
-// Copyright (c) 2018-2023 www.open3d.org
+// Copyright (c) 2018-2024 www.open3d.org
 // SPDX-License-Identifier: MIT
 // ----------------------------------------------------------------------------
 
@@ -21,7 +21,7 @@ class AxisAlignedBoundingBox;
 /// \brief A bounding box oriented along an arbitrary frame of reference.
 ///
 /// The oriented bounding box is defined by its center position, rotation
-/// maxtrix and extent.
+/// matrix and extent.
 class OrientedBoundingBox : public Geometry3D {
 public:
     /// \brief Default constructor.
@@ -113,27 +113,39 @@ public:
             const AxisAlignedBoundingBox& aabox);
 
     /// Creates an oriented bounding box using a PCA.
-    /// Note, that this is only an approximation to the minimum oriented
+    /// Note, that this is only a coarse approximation to the minimum oriented
     /// bounding box that could be computed for example with O'Rourke's
     /// algorithm (cf. http://cs.smith.edu/~jorourke/Papers/MinVolBox.pdf,
     /// https://www.geometrictools.com/Documentation/MinimumVolumeBox.pdf)
-    /// \param points The input points
+    /// \param points A list of points with data type of float32 or float64 (N x
+    /// 3 tensor, where N must be larger than 3).
     /// \param robust If set to true uses a more robust method which works
     ///               in degenerate cases but introduces noise to the points
     ///               coordinates.
+    /// \remark
+    ///     For an exact algorithm use the Tensor version of
+    ///     open3d::t::geometry::OrientedBoundingBox::CreateFromPoints() and
+    ///     select the method
+    ///     open3d::t::geometry::MethodOBBCreate::MINIMAL_JYLANKI.
     static OrientedBoundingBox CreateFromPoints(
             const std::vector<Eigen::Vector3d>& points, bool robust = false);
 
-    /// Creates the oriented bounding box with the smallest volume.
-    /// The algorithm makes use of the fact that at least one edge of
+    /// Fast approximation of the oriented bounding box with the smallest
+    /// volume. The algorithm makes use of the fact that at least one edge of
     /// the convex hull must be collinear with an edge of the minimum
     /// bounding box: for each triangle in the convex hull, calculate
     /// the minimal axis aligned box in the frame of that triangle.
-    /// at the end, return the box with the smallest volume
-    /// \param points The input points
+    /// at the end, return the box with the smallest volume found.
+    /// \param points A list of points with data type of float32 or float64 (N x
+    /// 3 tensor, where N must be larger than 3).
     /// \param robust If set to true uses a more robust method which works
     ///               in degenerate cases but introduces noise to the points
     ///               coordinates.
+    /// \remark
+    ///     For an exact algorithm use the Tensor version of
+    ///     open3d::t::geometry::OrientedBoundingBox::CreateFromPoints() and
+    ///     select the method
+    ///     open3d::t::geometry::MethodOBBCreate::MINIMAL_JYLANKI.
     static OrientedBoundingBox CreateFromPointsMinimal(
             const std::vector<Eigen::Vector3d>& points, bool robust = false);
 
@@ -151,7 +163,8 @@ public:
 
 /// \class AxisAlignedBoundingBox
 ///
-/// \brief A bounding box that is aligned along the coordinate axes.
+/// \brief A bounding box that is aligned along the coordinate axes and defined
+/// by the min_bound and max_bound.
 ///
 ///  The AxisAlignedBoundingBox uses the coordinate axes for bounding box
 ///  generation. This means that the bounding box is oriented along the
@@ -171,11 +184,7 @@ public:
     /// \param min_bound Lower bounds of the bounding box for all axes.
     /// \param max_bound Upper bounds of the bounding box for all axes.
     AxisAlignedBoundingBox(const Eigen::Vector3d& min_bound,
-                           const Eigen::Vector3d& max_bound)
-        : Geometry3D(Geometry::GeometryType::AxisAlignedBoundingBox),
-          min_bound_(min_bound),
-          max_bound_(max_bound),
-          color_(1, 1, 1) {}
+                           const Eigen::Vector3d& max_bound);
     ~AxisAlignedBoundingBox() override {}
 
 public:
@@ -231,14 +240,20 @@ public:
     /// extents.
     double GetMaxExtent() const { return (max_bound_ - min_bound_).maxCoeff(); }
 
+    /// Calculates the percentage position of the given x-coordinate within
+    /// the x-axis range of this AxisAlignedBoundingBox.
     double GetXPercentage(double x) const {
         return (x - min_bound_(0)) / (max_bound_(0) - min_bound_(0));
     }
 
+    /// Calculates the percentage position of the given y-coordinate within
+    /// the y-axis range of this AxisAlignedBoundingBox.
     double GetYPercentage(double y) const {
         return (y - min_bound_(1)) / (max_bound_(1) - min_bound_(1));
     }
 
+    /// Calculates the percentage position of the given z-coordinate within
+    /// the z-axis range of this AxisAlignedBoundingBox.
     double GetZPercentage(double z) const {
         return (z - min_bound_(2)) / (max_bound_(2) - min_bound_(2));
     }
